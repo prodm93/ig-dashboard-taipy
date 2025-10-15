@@ -1,0 +1,5 @@
+taipy
+pandas
+requests
+plotly
+pyairtable
