@@ -1,3 +1,4 @@
+import os
 from taipy.gui import Gui
 from components.sidebar import sidebar
 from pages import engagement_dashboard, content_efficiency_dashboard, semantics_dashboard
