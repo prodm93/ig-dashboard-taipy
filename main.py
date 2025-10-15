@@ -32,7 +32,13 @@ root_page = """
 <|part|class_name=sidebar|
 # 📊 Malugo Analytics
 
-<|navbar|lov=pages|>
+## Dashboards
+
+[📈 Engagement](Engagement_Dashboard)
+
+[⚙️ Content Efficiency](Content_Efficiency)
+
+[💬 Semantics & Sentiment](Semantics_Sentiment)
 |>
 
 <|part|class_name=content|
@@ -41,16 +47,9 @@ root_page = """
 |>
 """
 
-# Navigation items
-pages_list = [
-    ("Engagement", "Engagement_Dashboard"),
-    ("Content Efficiency", "Content_Efficiency"),
-    ("Semantics & Sentiment", "Semantics_Sentiment")
-]
-
 # Define page routes
 pages = {
-    "/": root_page,  # Landing page with navigation
+    "/": root_page,
     "Engagement_Dashboard": engagement_dashboard.layout,
     "Content_Efficiency": content_efficiency_dashboard.layout,
     "Semantics_Sentiment": semantics_dashboard.layout,
