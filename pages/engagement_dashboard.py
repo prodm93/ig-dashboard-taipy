@@ -1,7 +1,7 @@
 # pages/engagement_dashboard.py
 import pandas as pd
 from data.config_loader import get_airtable_config
-from data.airtable_fetch import fetch_all
+from data.airtable_fetch import fetch_airtable_data
 
 ERROR = ""
 df_accounts = pd.DataFrame()
@@ -12,7 +12,7 @@ try:
     BASE_ID = cfg["base_id"]
     TABLE_ACCOUNTS = cfg["tables"]["ig_accounts"]   # "IG Account Metrics"
     # Pull data
-    df_accounts = fetch_all(API_KEY, BASE_ID, TABLE_ACCOUNTS)
+    df_accounts = fetch_airtable_data(API_KEY, BASE_ID, TABLE_ACCOUNTS)
     if "Date" in df_accounts.columns:
         df_accounts["Date"] = pd.to_datetime(df_accounts["Date"])
         df_accounts = df_accounts.sort_values("Date")
