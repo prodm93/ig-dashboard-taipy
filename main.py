@@ -26,12 +26,36 @@ except Exception as e:
     error_message = f"⚠️ {e}. Check Airtable config/env."
     print(f"Error loading data: {e}")
 
-# Define page routes
+# Create a root page with navigation
+root_page = """
+<|layout|columns=220px 1fr|
+<|part|class_name=sidebar|
+# 📊 Dashboards
+
+<|navbar|>
+
+[Engagement Dashboard](Engagement_Dashboard)
+
+[Content Efficiency](Content_Efficiency)
+
+[Semantics & Sentiment](Semantics_Sentiment)
+|>
+
+|part|>
+
+<|part|class_name=content|
+<|content|>
+|part|>
+
+|>
+"""
+
+# Define page routes - keys must match navigation links
 pages = {
-    "/": engagement_dashboard.layout,
-    "engagement": engagement_dashboard.layout,
-    "efficiency": content_efficiency_dashboard.layout,
-    "semantics": semantics_dashboard.layout,
+    "/": root_page,
+    "Engagement_Dashboard": engagement_dashboard.layout,
+    "Content_Efficiency": content_efficiency_dashboard.layout,
+    "Semantics_Sentiment": semantics_dashboard.layout,
 }
 
 # Launch the GUI
