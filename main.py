@@ -12,10 +12,10 @@ from pages import engagement_dashboard, content_efficiency_dashboard, semantics_
 }"""
 
 pages = {
-    "/": engagement_dashboard.page,          # home
-    "engagement": engagement_dashboard.page,
-    "efficiency": content_efficiency_dashboard.page,
-    "semantics": semantics_dashboard.page,
+    "/": engagement_dashboard.layout,          # home
+    "engagement": engagement_dashboard.layout,
+    "efficiency": content_efficiency_dashboard.layout,
+    "semantics": semantics_dashboard.layout,
 }
 
 # Launch the GUI
