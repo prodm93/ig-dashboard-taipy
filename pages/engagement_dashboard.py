@@ -4,18 +4,19 @@ from data.config_loader import get_airtable_config
 from data.airtable_fetch import fetch_airtable_data
 
 ERROR = ""
-df_accounts = pd.DataFrame()
+data = pd.DataFrame()  # ✅ Changed from df_accounts to data
 
 try:
-    cfg = get_airtable_config()          # <- returns a flat dict now
+    cfg = get_airtable_config()
     API_KEY = cfg["api_key"]
     BASE_ID = cfg["base_id"]
-    TABLE_ACCOUNTS = cfg["tables"]["ig_accounts"]   # "IG Account Metrics"
+    TABLE_ACCOUNTS = cfg["tables"]["ig_accounts"]
+    
     # Pull data
-    df_accounts = fetch_airtable_data(API_KEY, BASE_ID, TABLE_ACCOUNTS)
-    if "Date" in df_accounts.columns:
-        df_accounts["Date"] = pd.to_datetime(df_accounts["Date"])
-        df_accounts = df_accounts.sort_values("Date")
+    data = fetch_airtable_data(API_KEY, BASE_ID, TABLE_ACCOUNTS)  # ✅ Changed
+    if "Date" in data.columns:
+        data["Date"] = pd.to_datetime(data["Date"])
+        data = data.sort_values("Date")
 except Exception as e:
     ERROR = f"⚠️ {e}. Check Airtable config/env."
 
