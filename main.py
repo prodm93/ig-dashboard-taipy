@@ -26,33 +26,31 @@ except Exception as e:
     error_message = f"⚠️ {e}. Check Airtable config/env."
     print(f"Error loading data: {e}")
 
-# Create a root page with navigation
+# Create a beautiful root page with navigation
 root_page = """
-<|layout|columns=220px 1fr|
+<|layout|columns=250px 1fr|
 <|part|class_name=sidebar|
-# 📊 Dashboards
+# 📊 Malugo Analytics
 
-<|navbar|>
-
-[Engagement Dashboard](Engagement_Dashboard)
-
-[Content Efficiency](Content_Efficiency)
-
-[Semantics & Sentiment](Semantics_Sentiment)
+<|navbar|lov=pages|>
 |>
-
-|part|>
 
 <|part|class_name=content|
 <|content|>
 |part|>
-
 |>
 """
 
-# Define page routes - keys must match navigation links
+# Navigation items
+pages_list = [
+    ("Engagement", "Engagement_Dashboard"),
+    ("Content Efficiency", "Content_Efficiency"),
+    ("Semantics & Sentiment", "Semantics_Sentiment")
+]
+
+# Define page routes
 pages = {
-    "/": root_page,
+    "/": root_page,  # Landing page with navigation
     "Engagement_Dashboard": engagement_dashboard.layout,
     "Content_Efficiency": content_efficiency_dashboard.layout,
     "Semantics_Sentiment": semantics_dashboard.layout,
@@ -61,8 +59,9 @@ pages = {
 # Launch the GUI
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    Gui(pages=pages).run(
-        title="Malugo Dashboard", 
+    Gui(pages=pages, css_file="style.css").run(
+        title="Malugo Analytics ✨", 
         host="0.0.0.0", 
-        port=port
+        port=port,
+        dark_mode=True
     )
