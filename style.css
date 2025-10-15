@@ -1,0 +1,290 @@
+/* Malugo Brand Styling - Psychedelic Pop Surrealism */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@300;400;500&display=swap');
+
+:root {
+    /* Malugo Color Palette */
+    --purple-neon: #d70df2;
+    --lime-glow: #84c907;
+    --deep-void: #272c14;
+    --solar-gold: #f3b706;
+    --heart-red: #d90908;
+    --soft-cream: #efead4;
+    --mystic-blue: #580ff2;
+    --ocean-blue: #3b70c8;
+    --flame-orange: #f23104;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, var(--deep-void) 0%, #1a1f0f 100%);
+    font-family: 'Inter', sans-serif;
+    color: var(--soft-cream);
+    min-height: 100vh;
+}
+
+/* Sidebar - The Third Eye Awakening */
+.sidebar {
+    background: linear-gradient(180deg, var(--deep-void) 0%, #1a1408 100%);
+    padding: 30px 20px;
+    min-height: 100vh;
+    border-right: 2px solid var(--purple-neon);
+    box-shadow: 0 0 40px rgba(215, 13, 242, 0.3);
+    position: relative;
+}
+
+.sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(180deg, 
+        var(--purple-neon) 0%, 
+        var(--lime-glow) 50%, 
+        var(--solar-gold) 100%);
+    opacity: 0.6;
+    animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+.sidebar h1 {
+    color: var(--purple-neon);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.5rem;
+    margin-bottom: 30px;
+    text-shadow: 0 0 20px rgba(215, 13, 242, 0.6);
+    letter-spacing: -0.5px;
+}
+
+.sidebar a {
+    display: block;
+    color: var(--soft-cream);
+    text-decoration: none;
+    padding: 15px 20px;
+    margin: 10px 0;
+    border-radius: 12px;
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.sidebar a::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(215, 13, 242, 0.3), 
+        transparent);
+    transition: left 0.5s;
+}
+
+.sidebar a:hover::before {
+    left: 100%;
+}
+
+.sidebar a:hover {
+    background: rgba(215, 13, 242, 0.15);
+    border-color: var(--purple-neon);
+    transform: translateX(5px);
+    box-shadow: 0 0 25px rgba(215, 13, 242, 0.4);
+}
+
+.sidebar a.active {
+    background: linear-gradient(135deg, 
+        rgba(215, 13, 242, 0.2), 
+        rgba(132, 201, 7, 0.2));
+    border-color: var(--lime-glow);
+    box-shadow: 0 0 30px rgba(132, 201, 7, 0.3);
+}
+
+/* Main Content - Cloud-Head & Inner Galaxy */
+.content {
+    padding: 40px;
+    background: linear-gradient(135deg, 
+        rgba(39, 44, 20, 0.5) 0%, 
+        rgba(26, 31, 15, 0.5) 100%);
+    min-height: 100vh;
+}
+
+h1, h2, h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    margin-bottom: 25px;
+    background: linear-gradient(135deg, 
+        var(--purple-neon) 0%, 
+        var(--lime-glow) 50%, 
+        var(--solar-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-bottom: 40px;
+    text-shadow: 0 0 40px rgba(215, 13, 242, 0.5);
+}
+
+/* Charts - Emotional Fire */
+.taipy-chart {
+    background: linear-gradient(135deg, 
+        rgba(39, 44, 20, 0.8) 0%, 
+        rgba(26, 24, 8, 0.8) 100%);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(215, 13, 242, 0.2),
+        inset 0 0 60px rgba(215, 13, 242, 0.05);
+    margin: 30px 0;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    position: relative;
+    transition: all 0.4s ease;
+}
+
+.taipy-chart::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(135deg, 
+        var(--purple-neon), 
+        var(--lime-glow), 
+        var(--solar-gold));
+    border-radius: 20px;
+    z-index: -1;
+    opacity: 0.3;
+}
+
+.taipy-chart:hover {
+    transform: translateY(-5px);
+    box-shadow: 
+        0 12px 48px rgba(0, 0, 0, 0.5),
+        0 0 60px rgba(215, 13, 242, 0.4);
+}
+
+.taipy-chart:hover::before {
+    opacity: 0.6;
+}
+
+/* Chart titles */
+.js-plotly-plot .gtitle {
+    fill: var(--soft-cream) !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-weight: 600 !important;
+}
+
+/* Metrics Cards - Magic Mushrooms of Mindset */
+.metric-card {
+    background: linear-gradient(135deg, 
+        rgba(88, 15, 242, 0.15) 0%, 
+        rgba(59, 112, 200, 0.15) 100%);
+    padding: 25px;
+    border-radius: 16px;
+    border: 1px solid rgba(215, 13, 242, 0.3);
+    margin: 15px 0;
+    transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+    border-color: var(--lime-glow);
+    box-shadow: 0 0 40px rgba(132, 201, 7, 0.3);
+    transform: scale(1.02);
+}
+
+/* Error Messages - Emotional Fire */
+.error-message {
+    background: linear-gradient(135deg, 
+        rgba(242, 49, 4, 0.2) 0%, 
+        rgba(217, 9, 8, 0.2) 100%);
+    color: var(--soft-cream);
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 4px solid var(--flame-orange);
+    margin: 20px 0;
+    font-weight: 500;
+}
+
+/* Buttons - Future Self Portal */
+button, .taipy-button {
+    background: linear-gradient(135deg, var(--purple-neon), var(--mystic-blue));
+    color: var(--soft-cream);
+    border: none;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(215, 13, 242, 0.4);
+}
+
+button:hover, .taipy-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 30px rgba(215, 13, 242, 0.6);
+    background: linear-gradient(135deg, var(--mystic-blue), var(--purple-neon));
+}
+
+/* Scrollbar - Spiral of Thought */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--deep-void);
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--purple-neon), var(--lime-glow));
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--lime-glow), var(--solar-gold));
+}
+
+/* Loading Animation - The Inner Galaxy */
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.loading {
+    animation: rotate 2s linear infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .content {
+        padding: 20px;
+    }
+    
+    h1 {
+        font-size: 2rem;
+    }
+    
+    .sidebar {
+        min-height: auto;
+    }
+}
