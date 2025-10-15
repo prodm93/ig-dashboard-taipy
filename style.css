@@ -2,9 +2,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@300;400;500&display=swap');
 
 :root {
-    /* Malugo Color Palette */
+    /* Malugo Color Palette - Refined */
     --purple-neon: #d70df2;
-    --lime-glow: #84c907;
+    --lime-accent: #84c907;  /* Use sparingly! */
     --deep-void: #272c14;
     --solar-gold: #f3b706;
     --heart-red: #d90908;
@@ -12,6 +12,8 @@
     --mystic-blue: #580ff2;
     --ocean-blue: #3b70c8;
     --flame-orange: #f23104;
+    --dark-purple: #1a0a2e;
+    --midnight: #0f0f1e;
 }
 
 * {
@@ -21,7 +23,7 @@
 }
 
 body {
-    background: linear-gradient(135deg, var(--deep-void) 0%, #1a1f0f 100%);
+    background: linear-gradient(135deg, var(--midnight) 0%, var(--dark-purple) 100%);
     font-family: 'Inter', sans-serif;
     color: var(--soft-cream);
     min-height: 100vh;
@@ -29,11 +31,13 @@ body {
 
 /* Sidebar - The Third Eye Awakening */
 .sidebar {
-    background: linear-gradient(180deg, var(--deep-void) 0%, #1a1408 100%);
+    background: linear-gradient(180deg, 
+        rgba(26, 10, 46, 0.95) 0%, 
+        rgba(39, 44, 20, 0.95) 100%);
     padding: 30px 20px;
     min-height: 100vh;
     border-right: 2px solid var(--purple-neon);
-    box-shadow: 0 0 40px rgba(215, 13, 242, 0.3);
+    box-shadow: 0 0 40px rgba(215, 13, 242, 0.4);
     position: relative;
 }
 
@@ -46,14 +50,14 @@ body {
     height: 100%;
     background: linear-gradient(180deg, 
         var(--purple-neon) 0%, 
-        var(--lime-glow) 50%, 
-        var(--solar-gold) 100%);
-    opacity: 0.6;
+        var(--mystic-blue) 50%, 
+        var(--ocean-blue) 100%);
+    opacity: 0.7;
     animation: pulse 3s ease-in-out infinite;
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 0.6; }
+    0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
 }
 
@@ -61,10 +65,21 @@ body {
     color: var(--purple-neon);
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 700;
-    font-size: 1.5rem;
-    margin-bottom: 30px;
-    text-shadow: 0 0 20px rgba(215, 13, 242, 0.6);
+    font-size: 1.6rem;
+    margin-bottom: 10px;
+    text-shadow: 0 0 25px rgba(215, 13, 242, 0.7);
     letter-spacing: -0.5px;
+}
+
+.sidebar h2 {
+    color: var(--solar-gold);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin: 30px 0 15px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.8;
 }
 
 .sidebar a {
@@ -72,9 +87,10 @@ body {
     color: var(--soft-cream);
     text-decoration: none;
     padding: 15px 20px;
-    margin: 10px 0;
+    margin: 8px 0;
     border-radius: 12px;
     font-weight: 500;
+    font-size: 0.95rem;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid transparent;
     position: relative;
@@ -108,18 +124,21 @@ body {
 
 .sidebar a.active {
     background: linear-gradient(135deg, 
-        rgba(215, 13, 242, 0.2), 
-        rgba(132, 201, 7, 0.2));
-    border-color: var(--lime-glow);
-    box-shadow: 0 0 30px rgba(132, 201, 7, 0.3);
+        rgba(215, 13, 242, 0.25), 
+        rgba(88, 15, 242, 0.25));
+    border-color: var(--purple-neon);
+    box-shadow: 0 0 30px rgba(215, 13, 242, 0.4);
 }
 
-/* Main Content - Cloud-Head & Inner Galaxy */
+/* Main Content - Cosmic Depth */
 .content {
     padding: 40px;
-    background: linear-gradient(135deg, 
-        rgba(39, 44, 20, 0.5) 0%, 
-        rgba(26, 31, 15, 0.5) 100%);
+    background: radial-gradient(ellipse at top, 
+        rgba(88, 15, 242, 0.1) 0%, 
+        transparent 50%),
+        linear-gradient(135deg, 
+        var(--midnight) 0%, 
+        var(--dark-purple) 100%);
     min-height: 100vh;
 }
 
@@ -129,7 +148,7 @@ h1, h2, h3 {
     margin-bottom: 25px;
     background: linear-gradient(135deg, 
         var(--purple-neon) 0%, 
-        var(--lime-glow) 50%, 
+        var(--ocean-blue) 50%, 
         var(--solar-gold) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -138,27 +157,28 @@ h1, h2, h3 {
 }
 
 h1 {
-    font-size: 2.5rem;
+    font-size: 2.8rem;
     margin-bottom: 40px;
-    text-shadow: 0 0 40px rgba(215, 13, 242, 0.5);
+    filter: drop-shadow(0 0 30px rgba(215, 13, 242, 0.6));
 }
 
-/* Charts - Emotional Fire */
+/* Charts - Mystical Visualization */
 .taipy-chart {
     background: linear-gradient(135deg, 
-        rgba(39, 44, 20, 0.8) 0%, 
-        rgba(26, 24, 8, 0.8) 100%);
+        rgba(26, 10, 46, 0.6) 0%, 
+        rgba(15, 15, 30, 0.6) 100%);
     padding: 30px;
     border-radius: 20px;
     box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(215, 13, 242, 0.2),
-        inset 0 0 60px rgba(215, 13, 242, 0.05);
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(215, 13, 242, 0.3),
+        inset 0 0 60px rgba(88, 15, 242, 0.1);
     margin: 30px 0;
     border: 2px solid transparent;
     background-clip: padding-box;
     position: relative;
     transition: all 0.4s ease;
+    backdrop-filter: blur(10px);
 }
 
 .taipy-chart::before {
@@ -169,23 +189,23 @@ h1 {
     right: -2px;
     bottom: -2px;
     background: linear-gradient(135deg, 
-        var(--purple-neon), 
-        var(--lime-glow), 
-        var(--solar-gold));
+        var(--purple-neon) 0%, 
+        var(--mystic-blue) 50%, 
+        var(--ocean-blue) 100%);
     border-radius: 20px;
     z-index: -1;
-    opacity: 0.3;
+    opacity: 0.4;
 }
 
 .taipy-chart:hover {
     transform: translateY(-5px);
     box-shadow: 
-        0 12px 48px rgba(0, 0, 0, 0.5),
-        0 0 60px rgba(215, 13, 242, 0.4);
+        0 12px 48px rgba(0, 0, 0, 0.6),
+        0 0 80px rgba(215, 13, 242, 0.5);
 }
 
 .taipy-chart:hover::before {
-    opacity: 0.6;
+    opacity: 0.7;
 }
 
 /* Chart titles */
@@ -195,11 +215,11 @@ h1 {
     font-weight: 600 !important;
 }
 
-/* Metrics Cards - Magic Mushrooms of Mindset */
+/* Metrics Cards */
 .metric-card {
     background: linear-gradient(135deg, 
-        rgba(88, 15, 242, 0.15) 0%, 
-        rgba(59, 112, 200, 0.15) 100%);
+        rgba(88, 15, 242, 0.2) 0%, 
+        rgba(59, 112, 200, 0.2) 100%);
     padding: 25px;
     border-radius: 16px;
     border: 1px solid rgba(215, 13, 242, 0.3);
@@ -208,12 +228,12 @@ h1 {
 }
 
 .metric-card:hover {
-    border-color: var(--lime-glow);
-    box-shadow: 0 0 40px rgba(132, 201, 7, 0.3);
+    border-color: var(--solar-gold);
+    box-shadow: 0 0 40px rgba(243, 183, 6, 0.3);
     transform: scale(1.02);
 }
 
-/* Error Messages - Emotional Fire */
+/* Error Messages */
 .error-message {
     background: linear-gradient(135deg, 
         rgba(242, 49, 4, 0.2) 0%, 
@@ -226,7 +246,7 @@ h1 {
     font-weight: 500;
 }
 
-/* Buttons - Future Self Portal */
+/* Buttons */
 button, .taipy-button {
     background: linear-gradient(135deg, var(--purple-neon), var(--mystic-blue));
     color: var(--soft-cream);
@@ -237,41 +257,37 @@ button, .taipy-button {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 20px rgba(215, 13, 242, 0.4);
+    box-shadow: 0 4px 20px rgba(215, 13, 242, 0.5);
 }
 
 button:hover, .taipy-button:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 30px rgba(215, 13, 242, 0.6);
-    background: linear-gradient(135deg, var(--mystic-blue), var(--purple-neon));
+    box-shadow: 0 6px 30px rgba(215, 13, 242, 0.7);
+    background: linear-gradient(135deg, var(--mystic-blue), var(--ocean-blue));
 }
 
-/* Scrollbar - Spiral of Thought */
+/* Scrollbar */
 ::-webkit-scrollbar {
     width: 12px;
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--deep-void);
+    background: var(--midnight);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--purple-neon), var(--lime-glow));
+    background: linear-gradient(180deg, var(--purple-neon), var(--mystic-blue));
     border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--lime-glow), var(--solar-gold));
+    background: linear-gradient(180deg, var(--mystic-blue), var(--ocean-blue));
 }
 
-/* Loading Animation - The Inner Galaxy */
-@keyframes rotate {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.loading {
-    animation: rotate 2s linear infinite;
+/* Lime accent - use only for highlights */
+.accent-lime {
+    color: var(--lime-accent);
+    text-shadow: 0 0 15px rgba(132, 201, 7, 0.6);
 }
 
 /* Responsive */
