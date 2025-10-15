@@ -1,40 +1,43 @@
+# data/config_loader.py
 from __future__ import annotations
 import os, yaml
 from pathlib import Path
 from typing import Dict, Any
 
-def get_airtable_config() -> Dict[str, Any]:
-    # Load YAML relative to repo root (works on Render & locally)
-    repo_root = Path(__file__).resolve().parents[1]
-    cfg_path = repo_root / "config" / "airtable_config.yaml"
+YAML_PATH = Path(__file__).resolve().parents[1] / "config" / "airtable_config.yaml"
 
-    with cfg_path.open("r") as f:
+def get_airtable_config() -> Dict[str, Any]:
+    with YAML_PATH.open("r") as f:
         cfg = yaml.safe_load(f) or {}
 
-    air = cfg.get("airtable", {})
-    tables = air.get("tables", {})
+    # Your YAML shape: bases -> <alias> -> base_id, tables -> {ig_posts_comments: {name: ...}, ...}
+    bases = cfg.get("bases", {})
+    alias = os.getenv("AIRTABLE_BASE_ALIAS", "malugo_backend")  # choose which base to use
+    base_cfg = bases.get(alias, {})
 
-    # Required: API key & base id (env overrides YAML)
-    api_key = os.getenv("AIRTABLE_API_KEY", air.get("api_key") or "").strip()
-    base_id = os.getenv("AIRTABLE_BASE_ID", air.get("base_id") or "").strip()
+    # Required creds (env wins)
+    api_key = (os.getenv("AIRTABLE_API_KEY") or "").strip()
+    base_id = (os.getenv("AIRTABLE_BASE_ID") or base_cfg.get("base_id") or "").strip()
 
-    # Optional: table names (env overrides YAML if present)
-    tables_out = {
-        "ig_posts": os.getenv("AIRTABLE_TABLE_POSTS", tables.get("ig_posts", "")).strip(),
-        "ig_accounts": os.getenv("AIRTABLE_TABLE_ACCOUNTS", tables.get("ig_accounts", "")).strip(),
-    }
+    # Table names (env wins). Your keys: ig_posts_comments, ig_account_metrics -> each has {name: "..."}
+    t_cfg = base_cfg.get("tables", {})
+    tbl_posts = os.getenv("AIRTABLE_TABLE_POSTS", (t_cfg.get("ig_posts_comments") or {}).get("name", "")).strip()
+    tbl_accounts = os.getenv("AIRTABLE_TABLE_ACCOUNTS", (t_cfg.get("ig_account_metrics") or {}).get("name", "")).strip()
 
-    # Validate the essentials
     missing = []
-    if not api_key:  missing.append("AIRTABLE_API_KEY (or airtable.api_key in YAML)")
-    if not base_id:  missing.append("AIRTABLE_BASE_ID (or airtable.base_id in YAML)")
-    if not tables_out["ig_posts"]:    missing.append("tables.ig_posts (or AIRTABLE_TABLE_POSTS)")
-    if not tables_out["ig_accounts"]: missing.append("tables.ig_accounts (or AIRTABLE_TABLE_ACCOUNTS)")
+    if not api_key:       missing.append("AIRTABLE_API_KEY")
+    if not base_id:       missing.append("AIRTABLE_BASE_ID or bases.<alias>.base_id")
+    if not tbl_posts:     missing.append("AIRTABLE_TABLE_POSTS or tables.ig_posts_comments.name")
+    if not tbl_accounts:  missing.append("AIRTABLE_TABLE_ACCOUNTS or tables.ig_account_metrics.name")
     if missing:
         raise ValueError("Airtable config missing: " + ", ".join(missing))
 
     return {
         "api_key": api_key,
         "base_id": base_id,
-        "tables": tables_out,
+        "tables": {
+            "ig_posts": tbl_posts,
+            "ig_accounts": tbl_accounts,
+        },
+        "alias": alias,
     }
