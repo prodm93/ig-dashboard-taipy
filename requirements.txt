@@ -1,10 +1,23 @@
-# Core dashboard dependencies
+# Core Taipy stack
 taipy==3.1.0
-pandas==2.2.3
-pyairtable==2.3.0
+taipy-gui==3.1.0
+taipy-rest==3.1.0
+taipy-templates==3.1.0
+
+# Compatible data & utility libraries
+pandas==2.2.0          # Taipy 3.1 requires <=2.2.0
+numpy==1.26.4
 pyyaml==6.0.2
 requests==2.32.3
+typing-extensions==4.12.2
 
-# (Optional but useful)
-numpy==1.26.4
+# Airtable integration
+pyairtable==2.3.0
+
+# Visualization
 plotly==5.23.0
+
+# Optional but useful
+python-dateutil==2.9.0.post0
+pytz==2025.2
+tzdata==2025.2
