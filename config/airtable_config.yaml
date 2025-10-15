@@ -1,0 +1,8 @@
+bases:
+  malugo_backend:
+    base_id: apphvnSQodfnHTnUz   # your actual Airtable base ID
+    tables:
+      ig_posts_comments:
+        name: IG Posts and Comments
+      ig_account_metrics:
+        name: IG Account Metrics
