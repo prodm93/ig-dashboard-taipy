@@ -1,27 +1,23 @@
-from data.airtable_fetch import fetch_airtable_data
-from data.config_loader import get_airtable_config
+# pages/engagement_dashboard.py
 import pandas as pd
+from data.config_loader import get_airtable_config
+from data.airtable_fetch import fetch_all
 
-cfg = get_airtable_config()
-base = cfg["bases"]["malugo_backend"]
+ERROR = ""
+df_accounts = pd.DataFrame()
 
-# Fetch IG Account Metrics data
 try:
-    data = fetch_airtable_data(
-        base_id=base["base_id"],
-        table_name=base["tables"]["ig_account_metrics"]["name"],
-        api_key=base["tables"]["ig_account_metrics"]["api_key"]
-    )
-    if "Date" in data.columns:
-        data["Date"] = pd.to_datetime(data["Date"])
-        data = data.sort_values("Date")
+    cfg = get_airtable_config()          # <- returns a flat dict now
+    API_KEY = cfg["api_key"]
+    BASE_ID = cfg["base_id"]
+    TABLE_ACCOUNTS = cfg["tables"]["ig_accounts"]   # "IG Account Metrics"
+    # Pull data
+    df_accounts = fetch_all(API_KEY, BASE_ID, TABLE_ACCOUNTS)
+    if "Date" in df_accounts.columns:
+        df_accounts["Date"] = pd.to_datetime(df_accounts["Date"])
+        df_accounts = df_accounts.sort_values("Date")
 except Exception as e:
-    print(f"⚠️ Airtable load failed: {e}")
-    data = pd.DataFrame({
-        "Date": ["2025-10-12", "2025-10-13"],
-        "Reach": [1500, 1700],
-        "Follower Count": [510, 525],
-    })
+    ERROR = f"⚠️ {e}. Check Airtable config/env."
 
 layout = """
 # 📊 Engagement Dashboard
