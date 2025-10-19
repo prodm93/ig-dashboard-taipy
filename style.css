@@ -2,9 +2,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@300;400;500&display=swap');
 
 :root {
-    /* Malugo Color Palette - Refined */
+    /* Malugo Color Palette */
     --purple-neon: #d70df2;
-    --lime-accent: #84c907;  /* Use sparingly! */
+    --lime-accent: #84c907;
     --deep-void: #272c14;
     --solar-gold: #f3b706;
     --heart-red: #d90908;
@@ -162,6 +162,14 @@ h1 {
     filter: drop-shadow(0 0 30px rgba(215, 13, 242, 0.6));
 }
 
+h2 {
+    font-size: 1.8rem;
+}
+
+h3 {
+    font-size: 1.3rem;
+}
+
 /* Charts - Mystical Visualization */
 .taipy-chart {
     background: linear-gradient(135deg, 
@@ -208,29 +216,135 @@ h1 {
     opacity: 0.7;
 }
 
+/* Plotly Chart Styling - Beautiful Labels */
+.js-plotly-plot .plotly {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Chart background */
+.js-plotly-plot .bg {
+    fill: transparent !important;
+}
+
 /* Chart titles */
 .js-plotly-plot .gtitle {
     fill: var(--soft-cream) !important;
     font-family: 'Space Grotesk', sans-serif !important;
     font-weight: 600 !important;
+    font-size: 18px !important;
 }
 
-/* Metrics Cards */
+/* Axis labels */
+.js-plotly-plot .xtick text,
+.js-plotly-plot .ytick text {
+    fill: var(--soft-cream) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+
+/* Axis titles */
+.js-plotly-plot .xtitle,
+.js-plotly-plot .ytitle {
+    fill: var(--solar-gold) !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+}
+
+/* Grid lines */
+.js-plotly-plot .gridlayer .xgrid,
+.js-plotly-plot .gridlayer .ygrid {
+    stroke: rgba(243, 183, 6, 0.15) !important;
+}
+
+/* Hover labels - CRITICAL STYLING */
+.js-plotly-plot .hoverlayer .hovertext {
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    padding: 12px 16px !important;
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, 
+        rgba(243, 183, 6, 0.95) 0%, 
+        rgba(215, 13, 242, 0.95) 100%) !important;
+    border: 2px solid var(--solar-gold) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 
+                0 0 30px rgba(243, 183, 6, 0.5) !important;
+}
+
+.js-plotly-plot .hoverlayer .hovertext text {
+    fill: var(--midnight) !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+}
+
+.js-plotly-plot .hoverlayer .hovertext path {
+    fill: var(--solar-gold) !important;
+    stroke: var(--purple-neon) !important;
+    stroke-width: 2px !important;
+}
+
+/* Legend styling */
+.js-plotly-plot .legend {
+    font-size: 13px !important;
+}
+
+.js-plotly-plot .legend .legendtext {
+    fill: var(--soft-cream) !important;
+    font-weight: 500 !important;
+}
+
+/* Metrics Cards - Solar Gold */
 .metric-card {
     background: linear-gradient(135deg, 
-        rgba(88, 15, 242, 0.2) 0%, 
-        rgba(59, 112, 200, 0.2) 100%);
+        rgba(243, 183, 6, 0.15) 0%, 
+        rgba(88, 15, 242, 0.15) 100%);
     padding: 25px;
     border-radius: 16px;
-    border: 1px solid rgba(215, 13, 242, 0.3);
+    border: 2px solid rgba(243, 183, 6, 0.4);
     margin: 15px 0;
     transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(243, 183, 6, 0.2);
 }
 
 .metric-card:hover {
     border-color: var(--solar-gold);
-    box-shadow: 0 0 40px rgba(243, 183, 6, 0.3);
+    box-shadow: 0 0 40px rgba(243, 183, 6, 0.5);
     transform: scale(1.02);
+    background: linear-gradient(135deg, 
+        rgba(243, 183, 6, 0.25) 0%, 
+        rgba(88, 15, 242, 0.25) 100%);
+}
+
+.metric-card h2,
+.metric-card h3 {
+    background: linear-gradient(135deg, 
+        var(--solar-gold) 0%, 
+        var(--flame-orange) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Big numbers for metrics */
+.big-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--solar-gold), var(--flame-orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    display: block;
+    margin-top: 10px;
+    text-shadow: 0 0 30px rgba(243, 183, 6, 0.6);
+}
+
+.metric-value {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--solar-gold);
+    display: block;
+    margin-top: 8px;
+    text-shadow: 0 0 20px rgba(243, 183, 6, 0.4);
 }
 
 /* Error Messages */
@@ -246,27 +360,104 @@ h1 {
     font-weight: 500;
 }
 
-/* Buttons */
-button, .taipy-button {
-    background: linear-gradient(135deg, var(--purple-neon), var(--mystic-blue));
+/* Selector styling */
+.taipy-selector,
+select {
+    background: linear-gradient(135deg, 
+        rgba(243, 183, 6, 0.1) 0%, 
+        rgba(26, 10, 46, 0.6) 100%) !important;
+    border: 2px solid var(--solar-gold) !important;
+    border-radius: 12px !important;
+    padding: 12px 20px !important;
+    color: var(--soft-cream) !important;
+    font-size: 1rem !important;
+    font-weight: 500 !important;
+    width: 100% !important;
+    max-width: 400px !important;
+    margin: 20px 0 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+}
+
+.taipy-selector:hover,
+select:hover {
+    border-color: var(--flame-orange) !important;
+    box-shadow: 0 0 25px rgba(243, 183, 6, 0.4) !important;
+}
+
+/* Table styling - GOLDEN TABLES */
+.taipy-table {
+    background: linear-gradient(135deg, 
+        rgba(243, 183, 6, 0.08) 0%, 
+        rgba(26, 10, 46, 0.5) 100%);
+    border-radius: 16px;
+    overflow: hidden;
+    margin: 20px 0;
+    border: 2px solid rgba(243, 183, 6, 0.3);
+    box-shadow: 0 8px 32px rgba(243, 183, 6, 0.2);
+}
+
+.taipy-table th {
+    background: linear-gradient(135deg, 
+        rgba(243, 183, 6, 0.4) 0%, 
+        rgba(242, 49, 4, 0.3) 100%);
     color: var(--soft-cream);
+    padding: 18px 15px;
+    font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 3px solid var(--solar-gold);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.taipy-table td {
+    padding: 15px;
+    border-bottom: 1px solid rgba(243, 183, 6, 0.15);
+    color: var(--soft-cream);
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.taipy-table tr {
+    transition: all 0.3s ease;
+}
+
+.taipy-table tr:hover {
+    background: linear-gradient(135deg, 
+        rgba(243, 183, 6, 0.2) 0%, 
+        rgba(215, 13, 242, 0.15) 100%);
+    transform: scale(1.01);
+}
+
+.taipy-table tr:nth-child(even) {
+    background: rgba(243, 183, 6, 0.05);
+}
+
+/* Buttons - Solar Portal */
+button, .taipy-button {
+    background: linear-gradient(135deg, var(--solar-gold), var(--flame-orange));
+    color: var(--midnight);
     border: none;
     padding: 12px 30px;
     border-radius: 25px;
     font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 20px rgba(215, 13, 242, 0.5);
+    box-shadow: 0 4px 20px rgba(243, 183, 6, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 button:hover, .taipy-button:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 30px rgba(215, 13, 242, 0.7);
-    background: linear-gradient(135deg, var(--mystic-blue), var(--ocean-blue));
+    box-shadow: 0 6px 30px rgba(243, 183, 6, 0.7);
+    background: linear-gradient(135deg, var(--flame-orange), var(--solar-gold));
 }
 
-/* Scrollbar */
+/* Scrollbar - Golden Spiral */
 ::-webkit-scrollbar {
     width: 12px;
 }
@@ -276,18 +467,29 @@ button:hover, .taipy-button:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--purple-neon), var(--mystic-blue));
+    background: linear-gradient(180deg, var(--solar-gold), var(--flame-orange));
     border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, var(--mystic-blue), var(--ocean-blue));
+    background: linear-gradient(180deg, var(--flame-orange), var(--purple-neon));
 }
 
-/* Lime accent - use only for highlights */
-.accent-lime {
-    color: var(--lime-accent);
-    text-shadow: 0 0 15px rgba(132, 201, 7, 0.6);
+/* Horizontal rule styling */
+hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        var(--solar-gold) 50%, 
+        transparent 100%);
+    margin: 30px 0;
+    opacity: 0.5;
+}
+
+/* Layout gaps */
+.taipy-layout {
+    gap: 20px;
 }
 
 /* Responsive */
@@ -303,4 +505,22 @@ button:hover, .taipy-button:hover {
     .sidebar {
         min-height: auto;
     }
+    
+    .big-number {
+        font-size: 2rem;
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+    }
+}
+
+/* Loading Animation */
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.loading {
+    animation: rotate 2s linear infinite;
 }
