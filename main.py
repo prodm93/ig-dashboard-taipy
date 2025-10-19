@@ -15,6 +15,7 @@ posts_data = pd.DataFrame(columns=["Post ID", "Likes Count", "Reach", "Saves", "
 # For post selector
 selected_post = ""
 post_options = []
+selected_post_data = {}
 
 try:
     cfg = get_airtable_config()
@@ -53,6 +54,30 @@ except Exception as e:
     error_message = f"⚠️ {e}. Check Airtable config/env."
     print(f"Error loading data: {e}")
 
+# Function to get selected post metrics
+def get_post_metric(metric_name, default=0):
+    if posts_data.empty or not selected_post or selected_post not in posts_data['Post ID'].values:
+        return default
+    row = posts_data[posts_data['Post ID'] == selected_post].iloc[0]
+    return row.get(metric_name, default)
+
+# Create metric variables
+post_likes = 0
+post_reach = 0
+post_saves = 0
+post_comments = 0
+post_engagement = 0.0
+
+def update_post_metrics(state):
+    """Update post metrics when selection changes"""
+    if not posts_data.empty and state.selected_post in posts_data['Post ID'].values:
+        row = posts_data[posts_data['Post ID'] == state.selected_post].iloc[0]
+        state.post_likes = int(row.get('Likes Count', 0))
+        state.post_reach = int(row.get('Reach', 0))
+        state.post_saves = int(row.get('Saves', 0))
+        state.post_comments = int(row.get('Total Comments Count', 0))
+        state.post_engagement = float(row.get('Engagement Rate', 0))
+
 # Create a beautiful root page with navigation
 root_page = """
 <|layout|columns=250px 1fr|
@@ -76,28 +101,21 @@ root_page = """
 |>
 """
 
-# Define page routes
-pages = {
-    "/": root_page,
-    "Engagement_Dashboard": engagement_dashboard.layout,
-    "Post_Performance": "<|{post_performance_layout}|>",
-    "Content_Efficiency": content_efficiency_dashboard.layout,
-    "Semantics_Sentiment": semantics_dashboard.layout,
-}
-
-# Post Performance Layout
+# Post Performance Layout - FIXED
 post_performance_layout = """
 # 🎬 Post Performance Analysis
 
+## 📊 Overview
+
 <|layout|columns=1 1|gap=20px|
 <|part|class_name=metric-card|
-## 📊 Total Posts
-### <|{len(posts_data)}|text|class_name=big-number|>
+**Total Posts**  
+<|{len(posts_data)}|text|class_name=big-number|>
 |>
 
 <|part|class_name=metric-card|
-## 💖 Total Engagement
-### <|{posts_data['Likes Count'].sum() if 'Likes Count' in posts_data.columns else 0:,.0f}|text|class_name=big-number|>
+**Total Engagement**  
+<|{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0}|text|format=,|class_name=big-number|>
 |>
 |>
 
@@ -106,56 +124,61 @@ post_performance_layout = """
 ## 🔍 Individual Post Analysis
 
 **Select a Post:**
-<|{selected_post}|selector|lov={post_options}|dropdown|>
 
-<|part|render={selected_post != ""}|
-### Post Details
+<|{selected_post}|selector|lov={post_options}|dropdown|on_change=update_post_metrics|>
 
 <|layout|columns=1 1 1|gap=15px|
 <|part|class_name=metric-card|
 **Likes**  
-<|{posts_data[posts_data['Post ID']==selected_post]['Likes Count'].iloc[0] if not posts_data.empty and selected_post in posts_data['Post ID'].values else 0:,.0f}|text|class_name=metric-value|>
+<|{post_likes}|text|format=,|class_name=metric-value|>
 |>
 
 <|part|class_name=metric-card|
 **Reach**  
-<|{posts_data[posts_data['Post ID']==selected_post]['Reach'].iloc[0] if not posts_data.empty and selected_post in posts_data['Post ID'].values else 0:,.0f}|text|class_name=metric-value|>
+<|{post_reach}|text|format=,|class_name=metric-value|>
 |>
 
 <|part|class_name=metric-card|
 **Saves**  
-<|{posts_data[posts_data['Post ID']==selected_post]['Saves'].iloc[0] if not posts_data.empty and selected_post in posts_data['Post ID'].values else 0:,.0f}|text|class_name=metric-value|>
+<|{post_saves}|text|format=,|class_name=metric-value|>
 |>
 |>
 
 <|layout|columns=1 1|gap=15px|
 <|part|class_name=metric-card|
 **Comments**  
-<|{posts_data[posts_data['Post ID']==selected_post]['Total Comments Count'].iloc[0] if not posts_data.empty and selected_post in posts_data['Post ID'].values and 'Total Comments Count' in posts_data.columns else 0:,.0f}|text|class_name=metric-value|>
+<|{post_comments}|text|format=,|class_name=metric-value|>
 |>
 
 <|part|class_name=metric-card|
 **Engagement Rate**  
-<|{posts_data[posts_data['Post ID']==selected_post]['Engagement Rate'].iloc[0] if not posts_data.empty and selected_post in posts_data['Post ID'].values and 'Engagement Rate' in posts_data.columns else 0:.2f}|text|class_name=metric-value|>%
-|>
+<|{post_engagement}|text|format=%.2f|class_name=metric-value|>%
 |>
 |>
 
 ---
 
-## 📊 Top Performing Posts
+## 📈 Performance Trends
 
-**By Engagement Rate:**
-<|{posts_data.nlargest(5, 'Engagement Rate') if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
-
----
-
-## 📈 Performance Over Time
-
-<|{posts_data}|chart|type=scatter|x=Timestamp|y=Engagement Rate|size=Reach|text=Post ID|title=Engagement Rate vs Time (Size = Reach)|mode=markers|>
+<|{posts_data}|chart|type=scatter|x=Timestamp|y=Engagement Rate|mode=markers|title=Engagement Rate Over Time|>
 
 <|{posts_data}|chart|type=bar|x=Post ID|y[1]=Likes Count|y[2]=Saves|title=Likes vs Saves by Post|>
+
+---
+
+## 🏆 Top Performers
+
+<|{posts_data.nlargest(10, 'Engagement Rate')[['Post ID', 'Likes Count', 'Reach', 'Saves', 'Engagement Rate']] if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
 """
+
+# Define page routes
+pages = {
+    "/": root_page,
+    "Engagement_Dashboard": engagement_dashboard.layout,
+    "Post_Performance": post_performance_layout,
+    "Content_Efficiency": content_efficiency_dashboard.layout,
+    "Semantics_Sentiment": semantics_dashboard.layout,
+}
 
 # Launch the GUI
 if __name__ == "__main__":
@@ -164,5 +187,6 @@ if __name__ == "__main__":
         title="Malugo Analytics ✨", 
         host="0.0.0.0", 
         port=port,
-        dark_mode=True
+        dark_mode=True,
+        on_change=update_post_metrics
     )
