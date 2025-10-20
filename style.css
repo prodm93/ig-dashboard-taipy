@@ -564,14 +564,23 @@ hr {
   margin: 10px 0 18px;
 }
 
-/* Keep charts comfortably narrow (you already set bottom margin to 32px) */
-.narrow {
-  max-width: 1100px;
-  margin: 0 auto 32px;
+/* Inline controls row (Updated at + Refresh) */
+.inline-controls {
+  margin: 6px 0 18px;
 }
 
-/* limit chart width and center */
-.narrow { 
-  max-width: 1100px; 
-  margin: 0 auto 32px;   /* add bottom spacing */
+.inline-text {
+  font-size: 15px;
+  align-self: center;
+}
+
+/* Refresh button spacing */
+.btn-refresh {
+  margin: 0;
+}
+
+/* Keep charts comfortably narrow */
+.narrow {
+  max-width: 1100px;
+  margin: 0 auto 34px;
 }
