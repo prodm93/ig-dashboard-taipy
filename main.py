@@ -62,9 +62,9 @@ def calculate_engagement_rate(row):
         return 0.0
 
 def get_post_metrics(post_id):
-    if posts_data.empty or post_id not in posts_data.get("Post ID", []):
+    if posts_data.empty or str(post_id) not in posts_data.get("Post ID", []).astype(str).tolist():
         return 0, 0, 0, 0, 0.0
-    row = posts_data[posts_data["Post ID"] == post_id].iloc[0]
+    row = posts_data[posts_data["Post ID"].astype(str) == str(post_id)].iloc[0]
     return (
         int(nz(row.get("Likes Count", 0))),
         int(nz(row.get("Reach", 0))),
@@ -130,6 +130,26 @@ def recompute_agg(state=None):
 def _on_agg_change(state):
     recompute_agg(state)
 
+
+# Preformatted display strings to avoid UI comma glitch
+def fmt_int(n): 
+    try: 
+        return f"{int(n):,}"
+    except Exception: 
+        return "0"
+
+def refresh_formats():
+    global current_followers_fmt, latest_reach_fmt, profile_views_fmt
+    global post_likes_fmt, post_reach_fmt, post_saves_fmt, post_comments_fmt
+    current_followers_fmt = fmt_int(current_followers)
+    latest_reach_fmt = fmt_int(latest_reach)
+    profile_views_fmt = fmt_int(profile_views)
+    post_likes_fmt = fmt_int(post_likes)
+    post_reach_fmt = fmt_int(post_reach)
+    post_saves_fmt = fmt_int(post_saves)
+    post_comments_fmt = fmt_int(post_comments)
+
+
 # -------------------------------
 # Data load
 # -------------------------------
@@ -159,6 +179,11 @@ try:
         if "Timestamp" in posts_data.columns:
             posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors="coerce")
             posts_data = posts_data.sort_values("Timestamp", ascending=False)
+
+        # Normalize Post ID as string for reliable selection
+        if 'Post ID' in posts_data.columns:
+            posts_data['Post ID'] = posts_data['Post ID'].astype(str)
+
 
         posts_data["Engagement Rate"] = posts_data.apply(calculate_engagement_rate, axis=1)
 
@@ -190,9 +215,11 @@ try:
             if selected_post:
                 (post_likes, post_reach, post_saves,
                  post_comments, post_engagement) = get_post_metrics(selected_post)
+                refresh_formats()
 
         # Initial aggregate
         recompute_agg()
+        refresh_formats()
 
 except Exception as e:
     error_message = f"⚠️ {e}"
@@ -204,6 +231,10 @@ def update_post_metrics(state):
      state.post_saves,
      state.post_comments,
      state.post_engagement) = get_post_metrics(state.selected_post)
+    state.post_likes_fmt = fmt_int(state.post_likes)
+    state.post_reach_fmt = fmt_int(state.post_reach)
+    state.post_saves_fmt = fmt_int(state.post_saves)
+    state.post_comments_fmt = fmt_int(state.post_comments)
 
 # -------------------------------
 # UI
@@ -237,17 +268,17 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 
 <|
 ## 👥 Current Followers
-<|{current_followers}|text|format=,|class_name=metric-number|>
+<|{current_followers_fmt}|text|class_name=metric-number|>
 |>
 
 <|
 ## 📈 Latest Reach
-<|{latest_reach}|text|format=,|class_name=metric-number|>
+<|{latest_reach_fmt}|text|class_name=metric-number|>
 |>
 
 <|
 ## 👁️ Profile Views
-<|{profile_views}|text|format=,|class_name=metric-number|>
+<|{profile_views_fmt}|text|class_name=metric-number|>
 |>
 
 |>
@@ -256,22 +287,22 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 
 ## 📊 Growth Trends
 
-<|{account_data}|chart|type=line|x=Date|y[1]=Reach|y[2]=Lifetime Follower Count|title=Reach & Follower Growth|>
+<|{account_data}|chart|type=line|x=Date|y[1]=Reach|y[2]=Lifetime Follower Count|title=Reach & Follower Growth|class_name=narrow|>
 
-<|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|>
+<|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|class_name=narrow|>
 
 <|part|class_name=panel|
 ## 📈 Total Engagement Rate Over Time (All Posts)
 <|layout|columns=1 1 1|gap=10px|
-<|Group by|label|>
+**Group by**
 <|{agg_granularity}|selector|lov=Day;Week|dropdown|on_change=_on_agg_change|>
-<|Start date|label|>
+**Start date**
 <|{date_start}|date|on_change=_on_agg_change|>
-<|End date|label|>
+**End date**
 <|{date_end}|date|on_change=_on_agg_change|>
 |>
 
-<|{agg_engagement_over_time}|chart|type=line|x=Date|y=Engagement Rate|title=Total Engagement Rate Over Time|>
+<|{agg_engagement_over_time}|chart|type=line|x=Date|y=Engagement Rate|title=Total Engagement Rate Over Time|class_name=narrow|>
 |part|>
 """
 
@@ -303,17 +334,17 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 
 <|
 **Likes**  
-<|{post_likes}|text|format=,|class_name=metric-number|>
+<|{post_likes_fmt}|text|class_name=metric-number|>
 |>
 
 <|
 **Reach**  
-<|{post_reach}|text|format=,|class_name=metric-number|>
+<|{post_reach_fmt}|text|class_name=metric-number|>
 |>
 
 <|
 **Saves**  
-<|{post_saves}|text|format=,|class_name=metric-number|>
+<|{post_saves_fmt}|text|class_name=metric-number|>
 |>
 
 |>
@@ -322,7 +353,7 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 
 <|
 **Audience Comments**  
-<|{post_comments}|text|format=,|class_name=metric-number|>
+<|{post_comments_fmt}|text|class_name=metric-number|>
 |>
 
 <|
@@ -337,7 +368,7 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 ## 📈 Performance Trends
 *Engagement Rate = (Audience Comments + Likes + Saves) / Reach × 100*
 
-<|{posts_data}|chart|type=scatter|mode=lines+markers|x=Timestamp|y=Engagement Rate|title=Engagement Rate Over Time|>
+<|{posts_data}|chart|type=scatter|mode=lines+markers|x=Timestamp|y=Engagement Rate|title=Engagement Rate Over Time|class_name=narrow|>
 
 ---
 
