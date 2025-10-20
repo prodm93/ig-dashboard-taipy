@@ -130,6 +130,27 @@ body {
     box-shadow: 0 0 30px rgba(215, 13, 242, 0.4);
 }
 
+/* Add this to the existing style.css, right after the .sidebar section */
+
+/* Logo container */
+.logo-container {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px 0;
+}
+
+.logo-container img {
+    width: 120px;
+    height: auto;
+    filter: drop-shadow(0 0 20px rgba(243, 183, 6, 0.6));
+    transition: transform 0.3s ease;
+}
+
+.logo-container img:hover {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 30px rgba(243, 183, 6, 0.8));
+}
+
 /* Main Content - Cosmic Depth */
 .content {
     padding: 40px;
