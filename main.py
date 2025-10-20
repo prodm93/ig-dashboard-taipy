@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import re
 from taipy.gui import Gui
 from data.config_loader import get_airtable_config
 from data.airtable_fetch import fetch_all_tables
@@ -22,22 +21,6 @@ post_engagement = 0.0
 current_followers = 0
 latest_reach = 0
 profile_views = 0
-
-def extract_caption_title(caption):
-    """Extract ONLY the title, completely removing Transmissão prefix"""
-    if pd.isna(caption) or not caption:
-        return "Untitled"
-    
-    # Remove the entire "Transmissão #003:" part
-    clean = re.sub(r'^.*?Transmissão\s+#?\d+:\s*', '', str(caption), flags=re.IGNORECASE)
-    
-    # Take first line
-    first_line = clean.split('\n')[0].strip()
-    
-    # Remove emojis
-    first_line = re.sub(r'[^\w\s,.:!?-]', '', first_line)
-    
-    return first_line[:45] + "..." if len(first_line) > 45 else first_line
 
 def calculate_engagement_rate(row):
     try:
@@ -82,6 +65,7 @@ try:
             current_followers = int(latest_row.get('Lifetime Follower Count', 0) or 0)
             latest_reach = int(latest_row.get('Reach', 0) or 0)
             profile_views = int(latest_row.get('Lifetime Profile Views', 0) or 0)
+            print(f"Loaded metrics: Followers={current_followers}, Reach={latest_reach}, Views={profile_views}")
     
     posts_data = all_data.get("ig_posts", pd.DataFrame())
     if not posts_data.empty:
@@ -89,8 +73,9 @@ try:
             posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors='coerce')
             posts_data = posts_data.sort_values("Timestamp", ascending=False)
         
+        # Simple display: just Content Type and Date
         posts_data["Display Label"] = posts_data.apply(
-            lambda row: f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))} ({row['Timestamp'].strftime('%b %d')})" if pd.notna(row.get('Timestamp')) else f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))}",
+            lambda row: f"{row.get('Content Type', 'POST')}: {row['Timestamp'].strftime('%b %d, %Y')}" if pd.notna(row.get('Timestamp')) else f"{row.get('Content Type', 'POST')}: No Date",
             axis=1
         )
         
@@ -105,6 +90,7 @@ try:
             
             if selected_post:
                 post_likes, post_reach, post_saves, post_comments, post_engagement = get_post_metrics(selected_post)
+                print(f"Initial post metrics: Likes={post_likes}, Reach={post_reach}")
 
 except Exception as e:
     error_message = f"⚠️ {e}"
@@ -143,18 +129,18 @@ engagement_dashboard_layout = """
 <|layout|columns=1 1 1|gap=20px|class_name=metrics-grid|
 
 <|
-<|text|class_name=metric-label|## 👥 Current Followers|>
-<|text|class_name=metric-number|{current_followers:,}|>
+## 👥 Current Followers
+**{current_followers:,}**
 |>
 
 <|
-<|text|class_name=metric-label|## 📈 Latest Reach|>
-<|text|class_name=metric-number|{latest_reach:,}|>
+## 📈 Latest Reach
+**{latest_reach:,}**
 |>
 
 <|
-<|text|class_name=metric-label|## 👁️ Profile Views|>
-<|text|class_name=metric-number|{profile_views:,}|>
+## 👁️ Profile Views
+**{profile_views:,}**
 |>
 
 |>
@@ -174,13 +160,13 @@ post_performance_layout = """
 <|layout|columns=1 1|gap=20px|class_name=metrics-grid|
 
 <|
-<|text|class_name=metric-label|## 📊 Total Posts|>
-<|text|class_name=metric-number|{len(posts_data)}|>
+## 📊 Total Posts
+**{len(posts_data)}**
 |>
 
 <|
-<|text|class_name=metric-label|## 💖 Total Likes|>
-<|text|class_name=metric-number|{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0:,}|>
+## 💖 Total Likes
+**{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0:,}**
 |>
 
 |>
@@ -196,18 +182,18 @@ post_performance_layout = """
 <|layout|columns=1 1 1|gap=15px|class_name=metrics-grid|
 
 <|
-<|text|class_name=metric-label|**Likes**|>
-<|text|class_name=metric-number|{post_likes:,}|>
+**Likes**  
+**{post_likes:,}**
 |>
 
 <|
-<|text|class_name=metric-label|**Reach**|>
-<|text|class_name=metric-number|{post_reach:,}|>
+**Reach**  
+**{post_reach:,}**
 |>
 
 <|
-<|text|class_name=metric-label|**Saves**|>
-<|text|class_name=metric-number|{post_saves:,}|>
+**Saves**  
+**{post_saves:,}**
 |>
 
 |>
@@ -215,13 +201,13 @@ post_performance_layout = """
 <|layout|columns=1 1|gap=15px|class_name=metrics-grid|
 
 <|
-<|text|class_name=metric-label|**Audience Comments**|>
-<|text|class_name=metric-number|{post_comments:,}|>
+**Audience Comments**  
+**{post_comments:,}**
 |>
 
 <|
-<|text|class_name=metric-label|**Engagement Rate**|>
-<|text|class_name=metric-number|{post_engagement:.2f}%|>
+**Engagement Rate**  
+**{post_engagement:.2f}%**
 |>
 
 |>
