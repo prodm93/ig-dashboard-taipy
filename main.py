@@ -27,19 +27,24 @@ latest_reach = 0
 profile_views = 0
 
 def extract_caption_title(caption):
-    """Extract title from caption after 'Transmissão ###:' pattern"""
+    """Extract title from caption AFTER 'Transmissão ###:' pattern - REMOVE the prefix"""
     if pd.isna(caption) or not caption:
         return "Untitled"
     
+    # Match and EXTRACT only what comes AFTER "Transmissão ###:"
     match = re.search(r'Transmissão\s+#?\d+:\s*(.+?)(?:\n|$)', caption, re.IGNORECASE)
     if match:
-        title = match.group(1).strip()
-        title = re.sub(r'[^\w\s,.-]', '', title)
-        return title[:50] + "..." if len(title) > 50 else title
+        title = match.group(1).strip()  # This is ONLY the title part
+        # Remove emojis
+        title = re.sub(r'[^\w\s,.:!?-]', '', title)
+        # Limit to 40 chars for dropdown
+        return title[:40] + "..." if len(title) > 40 else title
     
-    first_line = caption.split('\n')[0].strip()
-    first_line = re.sub(r'[^\w\s,.-]', '', first_line)
-    return first_line[:50] + "..." if len(first_line) > 50 else first_line
+    # Fallback: remove any Transmissão prefix if exists
+    clean_caption = re.sub(r'Transmissão\s+#?\d+:\s*', '', caption, flags=re.IGNORECASE)
+    first_line = clean_caption.split('\n')[0].strip()
+    first_line = re.sub(r'[^\w\s,.:!?-]', '', first_line)
+    return first_line[:40] + "..." if len(first_line) > 40 else first_line
 
 def calculate_engagement_rate(row):
     """Calculate engagement rate: (Audience Comments + Likes + Saves) / Reach * 100"""
@@ -93,8 +98,9 @@ try:
             posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors='coerce')
             posts_data = posts_data.sort_values("Timestamp", ascending=False)
         
+        # Create display column with ONLY content type and title (no Transmissão prefix)
         posts_data["Display Label"] = posts_data.apply(
-            lambda row: f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))} - {row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
+            lambda row: f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))} ({row['Timestamp'].strftime('%b %d')})" if pd.notna(row.get('Timestamp')) else f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))}",
             axis=1
         )
         
@@ -109,6 +115,7 @@ try:
             
             if selected_post:
                 post_likes, post_reach, post_saves, post_comments, post_engagement = get_post_metrics(selected_post)
+                print(f"Initial metrics loaded: Likes={post_likes}, Reach={post_reach}, Engagement={post_engagement}%")
 
 except Exception as e:
     error_message = f"⚠️ {e}. Check Airtable config/env."
@@ -117,12 +124,13 @@ except Exception as e:
 def update_post_metrics(state):
     """Update post metrics when selection changes"""
     state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement = get_post_metrics(state.selected_post)
+    print(f"Updated metrics: Likes={state.post_likes}, Reach={state.post_reach}")
 
 # Root page with navigation
 root_page = """
 <|layout|columns=250px 1fr|
 <|part|class_name=sidebar|
-<|image|src=logo.png|width=120px|class_name=sidebar-logo|>
+<|logo.png|image|width=120px|>
 
 # 📊 Malugo Analytics
 
@@ -143,19 +151,34 @@ root_page = """
 |>
 """
 
-# Engagement Dashboard - FIXED
+# Engagement Dashboard
 engagement_dashboard_layout = """
 # 📊 Account Engagement Overview
 
 <|{error_message}|text|class_name=error-message|>
 
-**Overview Metrics**
+<|container|
 
-Current Followers: **<|{current_followers}|text|format=,|>**
+<|container|class_name=metrics-grid|
 
-Latest Reach: **<|{latest_reach}|text|format=,|>**
+<|container|class_name=metric-card|
+## 👥 Current Followers
+### {current_followers:,}
+|>
 
-Profile Views: **<|{profile_views}|text|format=,|>**
+<|container|class_name=metric-card|
+## 📈 Latest Reach
+### {latest_reach:,}
+|>
+
+<|container|class_name=metric-card|
+## 👁️ Profile Views
+### {profile_views:,}
+|>
+
+|>
+
+|>
 
 ---
 
@@ -166,15 +189,27 @@ Profile Views: **<|{profile_views}|text|format=,|>**
 <|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|>
 """
 
-# Post Performance - FIXED
+# Post Performance
 post_performance_layout = """
 # 🎬 Post Performance Analysis
 
-## 📊 Overview
+<|container|
 
-Total Posts: **<|{len(posts_data)}|text|>**
+<|container|class_name=metrics-grid|
 
-Total Likes: **<|{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0}|text|format=,|>**
+<|container|class_name=metric-card|
+## 📊 Total Posts
+### {len(posts_data)}
+|>
+
+<|container|class_name=metric-card|
+## 💖 Total Likes
+### {int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0:,}
+|>
+
+|>
+
+|>
 
 ---
 
@@ -182,15 +217,43 @@ Total Likes: **<|{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts
 
 **Select a Post:**
 
-<|{selected_post}|selector|lov={post_options}|dropdown|on_change=update_post_metrics|>
+<|{selected_post}|selector|lov={post_options}|dropdown|class_name=post-selector|on_change=update_post_metrics|>
 
-**Metrics for Selected Post:**
+<|container|class_name=metrics-grid-3|
 
-- Likes: **<|{post_likes}|text|format=,|>**
-- Reach: **<|{post_reach}|text|format=,|>**
-- Saves: **<|{post_saves}|text|format=,|>**
-- Audience Comments: **<|{post_comments}|text|format=,|>**
-- Engagement Rate: **<|{post_engagement}|text|format=%.2f|>%**
+<|container|class_name=metric-card|
+**Likes**
+### {post_likes:,}
+|>
+
+<|container|class_name=metric-card|
+**Reach**
+### {post_reach:,}
+|>
+
+<|container|class_name=metric-card|
+**Saves**
+### {post_saves:,}
+|>
+
+|>
+
+<|container|class_name=metrics-grid-2|
+
+<|container|class_name=metric-card|
+**Audience Comments**
+### {post_comments:,}
+|>
+
+<|container|class_name=metric-card|
+**Engagement Rate**
+### {post_engagement:.2f}%
+<|text|class_name=formula-subtitle|
+*(Audience Comments + Likes + Saves) / Reach × 100*
+|>
+|>
+
+|>
 
 ---
 
