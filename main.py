@@ -42,6 +42,7 @@ APP_TZ = ZoneInfo("America/Sao_Paulo")  # display timezone
 last_updated_str = "—"
 
 is_refreshing = False
+refresh_status = ""
 
 # -------------------------------
 # Helpers
@@ -199,11 +200,14 @@ def reload_data(state=None):
     global current_followers, latest_reach, profile_views
     global post_options, selected_post, last_updated_str
     global post_likes, post_reach, post_saves, post_comments, post_engagement
-    global is_refreshing
+    global is_refreshing, refresh_status
 
+    # start "busy" indicator
     is_refreshing = True
+    refresh_status = "Refreshing…"
     if state:
         state.is_refreshing = True
+        state.refresh_status = refresh_status
 
     try:
         cfg = get_airtable_config()
@@ -232,7 +236,6 @@ def reload_data(state=None):
             if "Post ID" in posts_data.columns:
                 posts_data["Post ID"] = posts_data["Post ID"].astype(str)
 
-            # Compute engagement per post
             posts_data["Engagement Rate"] = posts_data.apply(calculate_engagement_rate, axis=1)
 
             total_posts = len(posts_data)
@@ -266,8 +269,7 @@ def reload_data(state=None):
                 current_sel = getattr(state, "selected_post", "")
                 if current_sel not in posts_data["Post ID"].astype(str).tolist():
                     state.selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) else ""
-                # refresh post-level cards for the (possibly new) selection
-                update_post_metrics(state)
+                update_post_metrics(state)  # refresh post-level cards
             else:
                 if selected_post not in posts_data["Post ID"].astype(str).tolist():
                     selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) else ""
@@ -293,9 +295,13 @@ def reload_data(state=None):
         print("Reload error:", e)
 
     finally:
+        # clear "busy" indicator
         is_refreshing = False
+        refresh_status = ""
         if state:
             state.is_refreshing = False
+            state.refresh_status = refresh_status
+
 
 
 # -------------------------------
@@ -435,7 +441,8 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 **Updated at (America/Sao_Paulo):** {last_updated_str}
 
 <|Refresh data|button|on_action=reload_data|>
-<|{ 'Refreshing…' if is_refreshing else '' }|text|>
+<|{refresh_status}|text|class_name=muted|>
+
 
 
 <|
@@ -489,7 +496,7 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 
 
 <|Refresh data|button|on_action=reload_data|>
-<|{ 'Refreshing…' if is_refreshing else '' }|text|>
+<|{refresh_status}|text|class_name=muted|>
 
 
 
