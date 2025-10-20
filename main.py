@@ -31,15 +31,12 @@ def extract_caption_title(caption):
     if pd.isna(caption) or not caption:
         return "Untitled"
     
-    # Try to match pattern like "Transmissão 002: Title here"
     match = re.search(r'Transmissão\s+#?\d+:\s*(.+?)(?:\n|$)', caption, re.IGNORECASE)
     if match:
         title = match.group(1).strip()
-        # Remove emojis and limit length
         title = re.sub(r'[^\w\s,.-]', '', title)
         return title[:50] + "..." if len(title) > 50 else title
     
-    # Fallback: just take first line or first 50 chars
     first_line = caption.split('\n')[0].strip()
     first_line = re.sub(r'[^\w\s,.-]', '', first_line)
     return first_line[:50] + "..." if len(first_line) > 50 else first_line
@@ -77,40 +74,32 @@ try:
     API_KEY = cfg["api_key"]
     BASE_ID = cfg["base_id"]
     
-    # Fetch both tables
     all_data = fetch_all_tables(API_KEY, BASE_ID, cfg["tables"])
     
-    # Account metrics
     account_data = all_data.get("ig_accounts", pd.DataFrame())
     if not account_data.empty and "Date" in account_data.columns:
         account_data["Date"] = pd.to_datetime(account_data["Date"], errors='coerce')
         account_data = account_data.sort_values("Date")
         
-        # Extract latest metrics for display
         if len(account_data) > 0:
             latest_row = account_data.iloc[-1]
             current_followers = int(latest_row.get('Lifetime Follower Count', 0) or 0)
             latest_reach = int(latest_row.get('Reach', 0) or 0)
             profile_views = int(latest_row.get('Lifetime Profile Views', 0) or 0)
     
-    # Posts data
     posts_data = all_data.get("ig_posts", pd.DataFrame())
     if not posts_data.empty:
-        # Process timestamp
         if "Timestamp" in posts_data.columns:
             posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors='coerce')
             posts_data = posts_data.sort_values("Timestamp", ascending=False)
         
-        # Create display column: "CONTENT_TYPE: Title - Date"
         posts_data["Display Label"] = posts_data.apply(
             lambda row: f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))} - {row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
             axis=1
         )
         
-        # Calculate proper engagement rate
         posts_data["Engagement Rate"] = posts_data.apply(calculate_engagement_rate, axis=1)
         
-        # Create post options dictionary for selector (ID: Label mapping)
         if "Post ID" in posts_data.columns:
             post_options = list(zip(
                 posts_data["Post ID"].tolist(),
@@ -118,7 +107,6 @@ try:
             ))
             selected_post = posts_data["Post ID"].iloc[0] if len(posts_data) > 0 else ""
             
-            # Initialize metrics for first post
             if selected_post:
                 post_likes, post_reach, post_saves, post_comments, post_engagement = get_post_metrics(selected_post)
 
@@ -126,12 +114,11 @@ except Exception as e:
     error_message = f"⚠️ {e}. Check Airtable config/env."
     print(f"Error loading data: {e}")
 
-# Function to update post metrics when selection changes
 def update_post_metrics(state):
     """Update post metrics when selection changes"""
     state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement = get_post_metrics(state.selected_post)
 
-# Create root page with navigation and logo - FIXED SYNTAX
+# Root page with navigation
 root_page = """
 <|layout|columns=250px 1fr|
 <|part|class_name=sidebar|
@@ -156,28 +143,19 @@ root_page = """
 |>
 """
 
-# Engagement Dashboard Layout - with proper variables
+# Engagement Dashboard - FIXED
 engagement_dashboard_layout = """
 # 📊 Account Engagement Overview
 
 <|{error_message}|text|class_name=error-message|>
 
-<|layout|columns=1 1 1|gap=20px|
-<|part|class_name=metric-card|
-## 👥 Current Followers
-<|{current_followers}|text|format=,|class_name=big-number|>
-|>
+**Overview Metrics**
 
-<|part|class_name=metric-card|
-## 📈 Latest Reach
-<|{latest_reach}|text|format=,|class_name=big-number|>
-|>
+Current Followers: **<|{current_followers}|text|format=,|>**
 
-<|part|class_name=metric-card|
-## 👁️ Profile Views
-<|{profile_views}|text|format=,|class_name=big-number|>
-|>
-|>
+Latest Reach: **<|{latest_reach}|text|format=,|>**
+
+Profile Views: **<|{profile_views}|text|format=,|>**
 
 ---
 
@@ -186,30 +164,17 @@ engagement_dashboard_layout = """
 <|{account_data}|chart|type=line|x=Date|y[1]=Reach|y[2]=Lifetime Follower Count|title=Reach & Follower Growth|>
 
 <|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|>
-
-<!-- COMMENTED OUT: Online Followers chart (API returning zeros)
-<|{account_data}|chart|type=line|x=Date|y=Online Followers|title=Online Followers Trend|>
-When API starts working again, uncomment this chart
--->
 """
 
-# Post Performance Layout - FIXED
+# Post Performance - FIXED
 post_performance_layout = """
 # 🎬 Post Performance Analysis
 
 ## 📊 Overview
 
-<|layout|columns=1 1|gap=20px|
-<|part|class_name=metric-card|
-**Total Posts**  
-<|{len(posts_data)}|text|class_name=big-number|>
-|>
+Total Posts: **<|{len(posts_data)}|text|>**
 
-<|part|class_name=metric-card|
-**Total Engagement**  
-<|{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0}|text|format=,|class_name=big-number|>
-|>
-|>
+Total Likes: **<|{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0}|text|format=,|>**
 
 ---
 
@@ -219,44 +184,19 @@ post_performance_layout = """
 
 <|{selected_post}|selector|lov={post_options}|dropdown|on_change=update_post_metrics|>
 
-<|layout|columns=1 1 1|gap=15px|
-<|part|class_name=metric-card|
-**Likes**  
-<|{post_likes}|text|format=,|class_name=metric-value|>
-|>
+**Metrics for Selected Post:**
 
-<|part|class_name=metric-card|
-**Reach**  
-<|{post_reach}|text|format=,|class_name=metric-value|>
-|>
-
-<|part|class_name=metric-card|
-**Saves**  
-<|{post_saves}|text|format=,|class_name=metric-value|>
-|>
-|>
-
-<|layout|columns=1 1|gap=15px|
-<|part|class_name=metric-card|
-**Audience Comments**  
-<|{post_comments}|text|format=,|class_name=metric-value|>
-|>
-
-<|part|class_name=metric-card|
-**Engagement Rate**  
-<|{post_engagement}|text|format=%.2f|class_name=metric-value|>%
-|>
-|>
+- Likes: **<|{post_likes}|text|format=,|>**
+- Reach: **<|{post_reach}|text|format=,|>**
+- Saves: **<|{post_saves}|text|format=,|>**
+- Audience Comments: **<|{post_comments}|text|format=,|>**
+- Engagement Rate: **<|{post_engagement}|text|format=%.2f|>%**
 
 ---
 
 ## 📈 Performance Trends
 
 <|{posts_data}|chart|type=scatter|x=Timestamp|y=Engagement Rate|mode=markers|title=Engagement Rate Over Time|>
-
-<!-- COMMENTED OUT: Likes vs Saves comparison
-<|{posts_data}|chart|type=bar|x=Display Label|y[1]=Likes Count|y[2]=Saves|title=Likes vs Saves by Post|>
--->
 
 ---
 
@@ -267,24 +207,17 @@ post_performance_layout = """
 <|{posts_data.nlargest(5, 'Engagement Rate')[['Display Label', 'Likes Count', 'Reach', 'Saves', 'Audience Comments Count', 'Engagement Rate']] if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
 """
 
-# Content Efficiency (keep simple for now)
+# Other pages
 content_efficiency_layout = """
 # ⚙️ Content Efficiency Dashboard
 
-Coming soon! This dashboard will show:
-- Posts published per week
-- Draft acceptance rates
-- Editing time efficiency
+Coming soon!
 """
 
-# Semantics Dashboard (keep simple for now)
 semantics_layout = """
 # 💬 Semantics & Sentiment Dashboard
 
-Coming soon! This dashboard will include:
-- Topic-level engagement breakdown
-- Sentiment trend visualizations
-- Caption-to-engagement correlation plots
+Coming soon!
 """
 
 # Define page routes
@@ -296,7 +229,7 @@ pages = {
     "Semantics_Sentiment": semantics_layout,
 }
 
-# Launch the GUI
+# Launch
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     Gui(pages=pages, css_file="style.css").run(
