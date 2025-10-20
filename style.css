@@ -518,4 +518,7 @@ hr {
 
 
 /* limit chart width and center */
-.narrow { max-width: 1100px; margin: 0 auto; }
+.narrow { 
+  max-width: 1100px; 
+  margin: 0 auto 32px;   /* add bottom spacing */
+}
