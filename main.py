@@ -5,9 +5,6 @@ from taipy.gui import Gui
 from data.config_loader import get_airtable_config
 from data.airtable_fetch import fetch_all_tables
 
-# Import layout strings from page modules
-from pages import engagement_dashboard, content_efficiency_dashboard, semantics_dashboard
-
 # Initialize variables
 error_message = ""
 account_data = pd.DataFrame(columns=["Date", "Reach", "Lifetime Follower Count"])
@@ -23,6 +20,11 @@ post_reach = 0
 post_saves = 0
 post_comments = 0
 post_engagement = 0.0
+
+# Account metrics for engagement dashboard
+current_followers = 0
+latest_reach = 0
+profile_views = 0
 
 def extract_caption_title(caption):
     """Extract title from caption after 'Transmissão ###:' pattern"""
@@ -83,6 +85,13 @@ try:
     if not account_data.empty and "Date" in account_data.columns:
         account_data["Date"] = pd.to_datetime(account_data["Date"], errors='coerce')
         account_data = account_data.sort_values("Date")
+        
+        # Extract latest metrics for display
+        if len(account_data) > 0:
+            latest_row = account_data.iloc[-1]
+            current_followers = int(latest_row.get('Lifetime Follower Count', 0) or 0)
+            latest_reach = int(latest_row.get('Reach', 0) or 0)
+            profile_views = int(latest_row.get('Lifetime Profile Views', 0) or 0)
     
     # Posts data
     posts_data = all_data.get("ig_posts", pd.DataFrame())
@@ -122,14 +131,11 @@ def update_post_metrics(state):
     """Update post metrics when selection changes"""
     state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement = get_post_metrics(state.selected_post)
 
-# Create root page with navigation and logo
+# Create root page with navigation and logo - FIXED SYNTAX
 root_page = """
 <|layout|columns=250px 1fr|
 <|part|class_name=sidebar|
-
-<|part|class_name=logo-container|
-<|image|src=logo.png|width=120px|>
-|>
+<|image|src=logo.png|width=120px|class_name=sidebar-logo|>
 
 # 📊 Malugo Analytics
 
@@ -148,6 +154,43 @@ root_page = """
 <|content|>
 |part|>
 |>
+"""
+
+# Engagement Dashboard Layout - with proper variables
+engagement_dashboard_layout = """
+# 📊 Account Engagement Overview
+
+<|{error_message}|text|class_name=error-message|>
+
+<|layout|columns=1 1 1|gap=20px|
+<|part|class_name=metric-card|
+## 👥 Current Followers
+<|{current_followers}|text|format=,|class_name=big-number|>
+|>
+
+<|part|class_name=metric-card|
+## 📈 Latest Reach
+<|{latest_reach}|text|format=,|class_name=big-number|>
+|>
+
+<|part|class_name=metric-card|
+## 👁️ Profile Views
+<|{profile_views}|text|format=,|class_name=big-number|>
+|>
+|>
+
+---
+
+## 📊 Growth Trends
+
+<|{account_data}|chart|type=line|x=Date|y[1]=Reach|y[2]=Lifetime Follower Count|title=Reach & Follower Growth|>
+
+<|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|>
+
+<!-- COMMENTED OUT: Online Followers chart (API returning zeros)
+<|{account_data}|chart|type=line|x=Date|y=Online Followers|title=Online Followers Trend|>
+When API starts working again, uncomment this chart
+-->
 """
 
 # Post Performance Layout - FIXED
@@ -224,13 +267,33 @@ post_performance_layout = """
 <|{posts_data.nlargest(5, 'Engagement Rate')[['Display Label', 'Likes Count', 'Reach', 'Saves', 'Audience Comments Count', 'Engagement Rate']] if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
 """
 
+# Content Efficiency (keep simple for now)
+content_efficiency_layout = """
+# ⚙️ Content Efficiency Dashboard
+
+Coming soon! This dashboard will show:
+- Posts published per week
+- Draft acceptance rates
+- Editing time efficiency
+"""
+
+# Semantics Dashboard (keep simple for now)
+semantics_layout = """
+# 💬 Semantics & Sentiment Dashboard
+
+Coming soon! This dashboard will include:
+- Topic-level engagement breakdown
+- Sentiment trend visualizations
+- Caption-to-engagement correlation plots
+"""
+
 # Define page routes
 pages = {
     "/": root_page,
-    "Engagement_Dashboard": engagement_dashboard.layout,
+    "Engagement_Dashboard": engagement_dashboard_layout,
     "Post_Performance": post_performance_layout,
-    "Content_Efficiency": content_efficiency_dashboard.layout,
-    "Semantics_Sentiment": semantics_dashboard.layout,
+    "Content_Efficiency": content_efficiency_layout,
+    "Semantics_Sentiment": semantics_layout,
 }
 
 # Launch the GUI
