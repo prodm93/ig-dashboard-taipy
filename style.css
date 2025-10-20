@@ -187,6 +187,26 @@ h3 {
     font-size: 1.3rem;
 }
 
+/* Add after the .content section */
+
+/* Style all layout columns as metric cards */
+.taipy-layout > div {
+    background: linear-gradient(135deg, 
+        rgba(243, 183, 6, 0.15) 0%, 
+        rgba(88, 15, 242, 0.15) 100%);
+    padding: 25px;
+    border-radius: 16px;
+    border: 2px solid rgba(243, 183, 6, 0.4);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(243, 183, 6, 0.2);
+}
+
+.taipy-layout > div:hover {
+    border-color: var(--solar-gold);
+    box-shadow: 0 0 40px rgba(243, 183, 6, 0.5);
+    transform: scale(1.02);
+}
+
 /* Charts - Mystical Visualization */
 .taipy-chart {
     background: linear-gradient(135deg, 
