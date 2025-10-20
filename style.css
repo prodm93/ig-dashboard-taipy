@@ -187,26 +187,7 @@ h3 {
     font-size: 1.3rem;
 }
 
-/* Add after h3 styling */
-
-/* Metric numbers in cards */
-.metrics-grid > div strong {
-    font-size: 2.5rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--solar-gold), var(--flame-orange));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: block;
-    margin-top: 10px;
-    line-height: 1.2;
-}
-
-.metrics-grid > div h2 {
-    font-size: 1rem;
-    margin-bottom: 5px;
-}
-
-/* Metric card grids - FIXED */
+/* Metric card grids */
 .metrics-grid {
     display: grid;
     gap: 20px;
@@ -228,12 +209,6 @@ h3 {
     border-color: var(--solar-gold);
     box-shadow: 0 0 40px rgba(243, 183, 6, 0.5);
     transform: scale(1.02);
-}
-
-.metric-label {
-    font-size: 1rem;
-    opacity: 0.9;
-    margin-bottom: 5px;
 }
 
 .metric-number {
@@ -292,17 +267,15 @@ h3 {
     opacity: 0.7;
 }
 
-/* Plotly Chart Styling - Beautiful Labels */
+/* Plotly Chart Styling */
 .js-plotly-plot .plotly {
     font-family: 'Inter', sans-serif !important;
 }
 
-/* Chart background */
 .js-plotly-plot .bg {
     fill: transparent !important;
 }
 
-/* Chart titles */
 .js-plotly-plot .gtitle {
     fill: var(--soft-cream) !important;
     font-family: 'Space Grotesk', sans-serif !important;
@@ -310,7 +283,6 @@ h3 {
     font-size: 18px !important;
 }
 
-/* Axis labels */
 .js-plotly-plot .xtick text,
 .js-plotly-plot .ytick text {
     fill: var(--soft-cream) !important;
@@ -318,7 +290,6 @@ h3 {
     font-weight: 500 !important;
 }
 
-/* Axis titles */
 .js-plotly-plot .xtitle,
 .js-plotly-plot .ytitle {
     fill: var(--solar-gold) !important;
@@ -326,13 +297,11 @@ h3 {
     font-size: 14px !important;
 }
 
-/* Grid lines */
 .js-plotly-plot .gridlayer .xgrid,
 .js-plotly-plot .gridlayer .ygrid {
     stroke: rgba(243, 183, 6, 0.15) !important;
 }
 
-/* Hover labels - CRITICAL STYLING */
 .js-plotly-plot .hoverlayer .hovertext {
     font-family: 'Space Grotesk', sans-serif !important;
     font-size: 15px !important;
@@ -359,7 +328,6 @@ h3 {
     stroke-width: 2px !important;
 }
 
-/* Legend styling */
 .js-plotly-plot .legend {
     font-size: 13px !important;
 }
@@ -407,7 +375,7 @@ select:hover {
     box-shadow: 0 0 25px rgba(243, 183, 6, 0.4) !important;
 }
 
-/* Table styling - GOLDEN TABLES */
+/* Table styling */
 .taipy-table {
     background: linear-gradient(135deg, 
         rgba(243, 183, 6, 0.08) 0%, 
@@ -457,7 +425,7 @@ select:hover {
     background: rgba(243, 183, 6, 0.05);
 }
 
-/* Buttons - Solar Portal */
+/* Buttons */
 button, .taipy-button {
     background: linear-gradient(135deg, var(--solar-gold), var(--flame-orange));
     color: var(--midnight);
@@ -479,7 +447,7 @@ button:hover, .taipy-button:hover {
     background: linear-gradient(135deg, var(--flame-orange), var(--solar-gold));
 }
 
-/* Scrollbar - Golden Spiral */
+/* Scrollbar */
 ::-webkit-scrollbar {
     width: 12px;
 }
@@ -497,7 +465,7 @@ button:hover, .taipy-button:hover {
     background: linear-gradient(180deg, var(--flame-orange), var(--purple-neon));
 }
 
-/* Horizontal rule styling */
+/* Horizontal rule */
 hr {
     border: none;
     height: 2px;
