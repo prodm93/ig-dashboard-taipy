@@ -141,6 +141,7 @@ def fmt_int(n):
 def refresh_formats():
     global current_followers_fmt, latest_reach_fmt, profile_views_fmt
     global post_likes_fmt, post_reach_fmt, post_saves_fmt, post_comments_fmt
+    global total_likes_fmt
     current_followers_fmt = fmt_int(current_followers)
     latest_reach_fmt = fmt_int(latest_reach)
     profile_views_fmt = fmt_int(profile_views)
@@ -148,6 +149,7 @@ def refresh_formats():
     post_reach_fmt = fmt_int(post_reach)
     post_saves_fmt = fmt_int(post_saves)
     post_comments_fmt = fmt_int(post_comments)
+    total_likes_fmt = fmt_int(total_likes)
 
 
 # -------------------------------
@@ -231,6 +233,7 @@ def update_post_metrics(state):
      state.post_saves,
      state.post_comments,
      state.post_engagement) = get_post_metrics(state.selected_post)
+    print('Post changed ->', state.selected_post, 'metrics:', state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement)
     state.post_likes_fmt = fmt_int(state.post_likes)
     state.post_reach_fmt = fmt_int(state.post_reach)
     state.post_saves_fmt = fmt_int(state.post_saves)
@@ -258,7 +261,7 @@ root_page = """<|layout|columns=250px 1fr|
 
 <|part|class_name=content|
 <|content|>
-|part|>
+|>
 |>
 """
 
@@ -293,6 +296,7 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 
 <|part|class_name=panel|
 ## 📈 Total Engagement Rate Over Time (All Posts)
+*Engagement Rate = (Audience Comments + Likes + Saves) / Reach × 100*
 <|layout|columns=1 1 1|gap=10px|
 **Group by**
 <|{agg_granularity}|selector|lov=Day;Week|dropdown|on_change=_on_agg_change|>
@@ -303,7 +307,7 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 |>
 
 <|{agg_engagement_over_time}|chart|type=line|x=Date|y=Engagement Rate|title=Total Engagement Rate Over Time|class_name=narrow|>
-|part|>
+|>
 """
 
 post_performance_layout = """# 🎬 Post Performance Analysis
@@ -317,7 +321,7 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 
 <|
 ## 💖 Total Likes
-<|{total_likes}|text|format=,|class_name=metric-number|>
+<|{total_likes_fmt}|text|class_name=metric-number|>
 |>
 
 |>
