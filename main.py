@@ -435,15 +435,12 @@ root_page = """<|layout|columns=250px 1fr|
 
 engagement_dashboard_layout = """# 📊 Account Engagement Overview
 
+<|layout|columns=auto auto|gap=16px|class_name=inline-controls|
+<|**Updated at (America/Sao_Paulo):** {last_updated_str}|text|class_name=inline-text|>
+<|Refresh data|button|class_name=btn-refresh|on_action=reload_data|>
+|>
+
 <|layout|columns=1 1 1|gap=20px|class_name=metrics-grid|
-
-
-**Updated at (America/Sao_Paulo):** {last_updated_str}
-
-<|Refresh data|button|on_action=reload_data|>
-<|{refresh_status}|text|class_name=muted|>
-
-
 
 <|
 ## 👥 Current Followers
@@ -463,7 +460,6 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 |>
 
 ---
-
 ## 📊 Growth Trends
 
 <|{account_data}|chart|type=line|x=Date|y[1]=Reach|y[2]=Lifetime Follower Count|title=Reach & Follower Growth|class_name=narrow|>
@@ -487,18 +483,16 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 |>
 """
 
+
+
 post_performance_layout = """# 🎬 Post Performance Analysis
 
+<|layout|columns=auto auto|gap=16px|class_name=inline-controls|
+<|**Updated at (America/Sao_Paulo):** {last_updated_str}|text|class_name=inline-text|>
+<|Refresh data|button|class_name=btn-refresh|on_action=reload_data|>
+|>
+
 <|layout|columns=1 1|gap=20px|class_name=metrics-grid|
-
-
-**Updated at (America/Sao_Paulo):** {last_updated_str}
-
-
-<|Refresh data|button|on_action=reload_data|>
-<|{refresh_status}|text|class_name=muted|>
-
-
 
 <|
 ## 📊 Total Posts
@@ -513,11 +507,8 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 |>
 
 ---
-
 ## 🔍 Individual Post Analysis
-
 **Select a Post:**
-
 <|{selected_post}|selector|lov={post_options}|dropdown|value_by_id=True|on_change=update_post_metrics|>
 
 <|layout|columns=1 1 1|gap=15px|class_name=metrics-grid|
@@ -554,19 +545,16 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 |>
 
 ---
-
 ## 📈 Performance Trends
 *Engagement Rate = (Audience Comments + Likes + Saves) / Reach × 100*
-
 <|{posts_data}|chart|type=scatter|mode=lines+markers|x=Timestamp|y=Engagement Rate|title=Engagement Rate Over Time|class_name=narrow|>
 
 ---
-
 ## 🏆 Top 5 Performers
 *Engagement Rate = (Audience Comments + Likes + Saves) / Reach × 100*
-
 <|{posts_data.nlargest(5, 'Engagement Rate')[['Display Label', 'Likes Count', 'Reach', 'Saves', 'Audience Comments Count', 'Engagement Rate']] if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
 """
+
 
 content_efficiency_layout = """# ⚙️ Content Efficiency Dashboard
 
