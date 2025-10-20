@@ -187,6 +187,25 @@ h3 {
     font-size: 1.3rem;
 }
 
+/* Add after h3 styling */
+
+/* Metric numbers in cards */
+.metrics-grid > div strong {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--solar-gold), var(--flame-orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: block;
+    margin-top: 10px;
+    line-height: 1.2;
+}
+
+.metrics-grid > div h2 {
+    font-size: 1rem;
+    margin-bottom: 5px;
+}
+
 /* Metric card grids - FIXED */
 .metrics-grid {
     display: grid;
