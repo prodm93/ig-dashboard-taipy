@@ -1,11 +1,16 @@
+
 import os
+import math
 import pandas as pd
 from taipy.gui import Gui
 from data.config_loader import get_airtable_config
 from data.airtable_fetch import fetch_all_tables
 
-# Initialize variables
+# -------------------------------
+# State / Globals
+# -------------------------------
 error_message = ""
+
 account_data = pd.DataFrame(columns=["Date", "Reach", "Lifetime Follower Count"])
 posts_data = pd.DataFrame(columns=["Post ID", "Likes Count", "Reach", "Saves", "Timestamp"])
 
@@ -25,13 +30,49 @@ total_posts = 0
 total_likes = 0
 
 # Aggregation controls
-agg_granularity = 'Day'  # 'Day' or 'Week'
-date_start = ''  # YYYY-MM-DD
-date_end = ''  # YYYY-MM-DD
-agg_engagement_over_time = pd.DataFrame(columns=['Date', 'Engagement Rate'])
+agg_granularity = "Day"  # Day | Week
+date_start = ""          # YYYY-MM-DD
+date_end = ""            # YYYY-MM-DD
+agg_engagement_over_time = pd.DataFrame(columns=["Date", "Engagement Rate"])
+
+# -------------------------------
+# Helpers
+# -------------------------------
+def nz(x, default=0):
+    """Return default for None/NaN; otherwise x."""
+    try:
+        if x is None:
+            return default
+        if isinstance(x, float) and math.isnan(x):
+            return default
+        return x
+    except Exception:
+        return default
 
 def calculate_engagement_rate(row):
     try:
+        audience_comments = float(nz(row.get("Audience Comments Count", 0)))
+        likes = float(nz(row.get("Likes Count", 0)))
+        saves = float(nz(row.get("Saves", 0)))
+        reach = float(nz(row.get("Reach", 0)))
+        if reach > 0:
+            return round(((audience_comments + likes + saves) / reach) * 100, 2)
+        return 0.0
+    except Exception:
+        return 0.0
+
+def get_post_metrics(post_id):
+    if posts_data.empty or post_id not in posts_data.get("Post ID", []):
+        return 0, 0, 0, 0, 0.0
+    row = posts_data[posts_data["Post ID"] == post_id].iloc[0]
+    return (
+        int(nz(row.get("Likes Count", 0))),
+        int(nz(row.get("Reach", 0))),
+        int(nz(row.get("Saves", 0))),
+        int(nz(row.get("Audience Comments Count", 0))),
+        float(nz(row.get("Engagement Rate", 0.0))),
+    )
+
 def _parse_date(s):
     try:
         return pd.to_datetime(s).date() if s else None
@@ -39,177 +80,135 @@ def _parse_date(s):
         return None
 
 def recompute_agg(state=None):
+    """Rebuild aggregated engagement rate over time based on controls."""
     global agg_engagement_over_time
     df = posts_data.copy()
-    agg_engagement_over_time = pd.DataFrame(columns=['Date', 'Engagement Rate'])
-    if df.empty or 'Timestamp' not in df.columns:
+    agg_engagement_over_time = pd.DataFrame(columns=["Date", "Engagement Rate"])
+
+    if df.empty or "Timestamp" not in df.columns:
         if state is not None:
             state.agg_engagement_over_time = agg_engagement_over_time
         return
 
-    # Prepare datetime
-    df['__dt'] = pd.to_datetime(df['Timestamp'], errors='coerce')
-    df = df.dropna(subset=['__dt'])
+    df["__dt"] = pd.to_datetime(df["Timestamp"], errors="coerce")
+    df = df.dropna(subset=["__dt"])
 
-    # Date filters
     _start = _parse_date(state.date_start if state is not None else date_start)
     _end = _parse_date(state.date_end if state is not None else date_end)
     if _start:
-        df = df[df['__dt'].dt.date >= _start]
+        df = df[df["__dt"].dt.date >= _start]
     if _end:
-        df = df[df['__dt'].dt.date <= _end]
+        df = df[df["__dt"].dt.date <= _end]
 
-    # Grouping
-    gran = (state.agg_granularity if state is not None else agg_granularity) or 'Day'
-    if gran == 'Week':
-        key = df['__dt'].dt.to_period('W').apply(lambda p: p.start_time.date())
+    gran = (state.agg_granularity if state is not None else agg_granularity) or "Day"
+    if gran == "Week":
+        key = df["__dt"].dt.to_period("W").apply(lambda p: p.start_time.date())
     else:
-        key = df['__dt'].dt.date
+        key = df["__dt"].dt.date
 
-    group = df.groupby(key).agg({
-        'Likes Count': 'sum',
-        'Audience Comments Count': 'sum',
-        'Saves': 'sum',
-        'Reach': 'sum',
-    }).reset_index().rename(columns={'index':'Date'})
-    group = group.rename(columns={group.columns[0]:'Date'})
+    group = df.groupby(key).agg(
+        {
+            "Likes Count": "sum",
+            "Audience Comments Count": "sum",
+            "Saves": "sum",
+            "Reach": "sum",
+        }
+    ).reset_index().rename(columns={0: "Date"})
+    group = group.rename(columns={group.columns[0]: "Date"})
 
     if len(group) > 0:
-        group['Engagement Rate'] = (
-            (group.get('Likes Count', 0) + group.get('Audience Comments Count', 0) + group.get('Saves', 0))
-            / group.get('Reach', 0).replace(0, pd.NA)
+        group["Engagement Rate"] = (
+            (group.get("Likes Count", 0) + group.get("Audience Comments Count", 0) + group.get("Saves", 0))
+            / group.get("Reach", 0).replace(0, pd.NA)
         ) * 100
-        group['Engagement Rate'] = group['Engagement Rate'].fillna(0).round(2)
-        agg_engagement_over_time = group[['Date', 'Engagement Rate']]
+        group["Engagement Rate"] = group["Engagement Rate"].fillna(0).round(2)
+        agg_engagement_over_time = group[["Date", "Engagement Rate"]]
+
     if state is not None:
         state.agg_engagement_over_time = agg_engagement_over_time
 
 def _on_agg_change(state):
     recompute_agg(state)
 
-        audience_comments = float(row.get('Audience Comments Count', 0) or 0)
-        likes = float(row.get('Likes Count', 0) or 0)
-        saves = float(row.get('Saves', 0) or 0)
-        reach = float(row.get('Reach', 0) or 0)
-        
-        if reach > 0:
-            return round(((audience_comments + likes + saves) / reach) * 100, 2)
-        return 0.0
-    except:
-        return 0.0
-
-def get_post_metrics(post_id):
-    if posts_data.empty or post_id not in posts_data['Post ID'].values:
-        return 0, 0, 0, 0, 0.0
-    
-    row = posts_data[posts_data['Post ID'] == post_id].iloc[0]
-    return (
-        int(row.get('Likes Count', 0) or 0),
-        int(row.get('Reach', 0) or 0),
-        int(row.get('Saves', 0) or 0),
-        int(row.get('Audience Comments Count', 0) or 0),
-        float(row.get('Engagement Rate', 0) or 0)
-    )
-
+# -------------------------------
+# Data load
+# -------------------------------
 try:
     cfg = get_airtable_config()
     API_KEY = cfg["api_key"]
     BASE_ID = cfg["base_id"]
-    
+
     all_data = fetch_all_tables(API_KEY, BASE_ID, cfg["tables"])
-    
+
+    # Account metrics
     account_data = all_data.get("ig_accounts", pd.DataFrame())
     if not account_data.empty and "Date" in account_data.columns:
-        account_data["Date"] = pd.to_datetime(account_data["Date"], errors='coerce')
+        account_data["Date"] = pd.to_datetime(account_data["Date"], errors="coerce")
         account_data = account_data.sort_values("Date")
-        
+        account_data["Day"] = account_data["Date"].dt.day_name()
+
         if len(account_data) > 0:
             latest_row = account_data.iloc[-1]
-            current_followers = int(latest_row.get('Lifetime Follower Count', 0) or 0)
-            latest_reach = int(latest_row.get('Reach', 0) or 0)
-            profile_views = int(latest_row.get('Lifetime Profile Views', 0) or 0)
-            print(f"✓ Loaded account metrics: Followers={current_followers:,}, Reach={latest_reach:,}, Views={profile_views:,}")
-    
+            current_followers = int(nz(latest_row.get("Lifetime Follower Count", 0)))
+            latest_reach = int(nz(latest_row.get("Reach", 0)))
+            profile_views = int(nz(latest_row.get("Lifetime Profile Views", 0)))
+
+    # Posts / comments
     posts_data = all_data.get("ig_posts", pd.DataFrame())
     if not posts_data.empty:
         if "Timestamp" in posts_data.columns:
-            posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors='coerce')
+            posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors="coerce")
             posts_data = posts_data.sort_values("Timestamp", ascending=False)
-        
-        # Simple display: just Content Type and Date
-        posts_data["Display Label"] = posts_data.apply(
-            lambda row: f"{row.get('Content Type', 'POST')}: {row['Timestamp'].strftime('%b %d, %Y')}" if pd.notna(row.get('Timestamp')) else f"{row.get('Content Type', 'POST')}: No Date",
-            axis=1
-        )
-        
+
         posts_data["Engagement Rate"] = posts_data.apply(calculate_engagement_rate, axis=1)
-        
+
         total_posts = len(posts_data)
-        total_likes = int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0
-        
-        
-        # Initialize default date range for aggregation controls
+        if "Likes Count" in posts_data.columns:
+            total_likes = int(pd.to_numeric(posts_data["Likes Count"], errors="coerce").fillna(0).sum())
+
+        # Date range defaults for aggregation
         try:
-            if 'Timestamp' in posts_data.columns and len(posts_data) > 0:
-                _dt = pd.to_datetime(posts_data['Timestamp'], errors='coerce').dropna()
+            if "Timestamp" in posts_data.columns and len(posts_data) > 0:
+                _dt = pd.to_datetime(posts_data["Timestamp"], errors="coerce").dropna()
                 if len(_dt) > 0:
                     date_start = str(_dt.min().date())
                     date_end = str(_dt.max().date())
         except Exception as _e:
-            print('Date range init error:', _e)
+            print("Date range init error:", _e)
 
-        # Build initial aggregate dataframe
-        recompute_agg()
-if "Post ID" in posts_data.columns:
-            post_options = list(zip(
-                posts_data["Post ID"].tolist(),
-                posts_data["Display Label"].tolist()
-            ))
+        # Build selector options
+        if "Post ID" in posts_data.columns:
+            # Display label: Content Type + date (if available)
+            if "Display Label" not in posts_data.columns:
+                posts_data["Display Label"] = posts_data.apply(
+                    lambda row: f"{row.get('Content Type', 'POST')}: "
+                                f"{row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
+                    axis=1
+                )
+            post_options = list(zip(posts_data["Post ID"].tolist(), posts_data["Display Label"].tolist()))
             selected_post = posts_data["Post ID"].iloc[0] if len(posts_data) > 0 else ""
-            
             if selected_post:
-                post_likes, post_reach, post_saves, post_comments, post_engagement = get_post_metrics(selected_post)
-                print(f"✓ Loaded post metrics: Likes={post_likes:,}, Reach={post_reach:,}, Engagement={post_engagement:.2f}%")
+                (post_likes, post_reach, post_saves,
+                 post_comments, post_engagement) = get_post_metrics(selected_post)
 
-    # ===== Aggregate engagement rate over time (by day) =====
-    agg_engagement_over_time = pd.DataFrame(columns=["Date", "Engagement Rate"])
-    try:
-        if not posts_data.empty:
-            # Ensure Timestamp -> date
-            if "Timestamp" in posts_data.columns:
-                tmp = posts_data.copy()
-                tmp["Date"] = pd.to_datetime(tmp["Timestamp"], errors="coerce").dt.date
-            else:
-                tmp = posts_data.copy()
-                tmp["Date"] = pd.NaT
-
-            # Sum metrics per date
-            group = tmp.groupby("Date", dropna=True).agg({
-                "Likes Count": "sum",
-                "Audience Comments Count": "sum",
-                "Saves": "sum",
-                "Reach": "sum",
-            }).reset_index()
-
-            group["Engagement Rate"] = (
-                (group.get("Likes Count", 0) + group.get("Audience Comments Count", 0) + group.get("Saves", 0))
-                / group.get("Reach", 0).replace(0, pd.NA)
-            ) * 100
-            group["Engagement Rate"] = group["Engagement Rate"].fillna(0).round(2)
-            group = group.rename(columns={"Date": "Date"})
-            agg_engagement_over_time = group[["Date", "Engagement Rate"]]
-    except Exception as _e:
-        print("Aggregate engagement compute error:", _e)
+        # Initial aggregate
+        recompute_agg()
 
 except Exception as e:
     error_message = f"⚠️ {e}"
     print(f"✗ Error: {e}")
 
 def update_post_metrics(state):
-    state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement = get_post_metrics(state.selected_post)
+    (state.post_likes,
+     state.post_reach,
+     state.post_saves,
+     state.post_comments,
+     state.post_engagement) = get_post_metrics(state.selected_post)
 
-root_page = """
-<|layout|columns=250px 1fr|
+# -------------------------------
+# UI
+# -------------------------------
+root_page = """<|layout|columns=250px 1fr|
 <|part|class_name=sidebar|
 <|logo.png|image|width=120px|>
 
@@ -232,8 +231,7 @@ root_page = """
 |>
 """
 
-engagement_dashboard_layout = """
-# 📊 Account Engagement Overview
+engagement_dashboard_layout = """# 📊 Account Engagement Overview
 
 <|layout|columns=1 1 1|gap=20px|class_name=metrics-grid|
 
@@ -262,7 +260,6 @@ engagement_dashboard_layout = """
 
 <|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|>
 
-
 <|part|class_name=panel|
 ## 📈 Total Engagement Rate Over Time (All Posts)
 <|layout|columns=1 1 1|gap=10px|
@@ -278,8 +275,7 @@ engagement_dashboard_layout = """
 |part|>
 """
 
-post_performance_layout = """
-# 🎬 Post Performance Analysis
+post_performance_layout = """# 🎬 Post Performance Analysis
 
 <|layout|columns=1 1|gap=20px|class_name=metrics-grid|
 
@@ -351,14 +347,12 @@ post_performance_layout = """
 <|{posts_data.nlargest(5, 'Engagement Rate')[['Display Label', 'Likes Count', 'Reach', 'Saves', 'Audience Comments Count', 'Engagement Rate']] if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
 """
 
-content_efficiency_layout = """
-# ⚙️ Content Efficiency Dashboard
+content_efficiency_layout = """# ⚙️ Content Efficiency Dashboard
 
 Coming soon!
 """
 
-semantics_layout = """
-# 💬 Semantics & Sentiment Dashboard
+semantics_layout = """# 💬 Semantics & Sentiment Dashboard
 
 Coming soon!
 """
@@ -374,8 +368,8 @@ pages = {
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     Gui(pages=pages, css_file="style.css").run(
-        title="Malugo Analytics ✨", 
-        host="0.0.0.0", 
+        title="Malugo Analytics ✨",
+        host="0.0.0.0",
         port=port,
-        dark_mode=True
+        dark_mode=True,
     )
