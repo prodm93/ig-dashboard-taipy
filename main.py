@@ -10,44 +10,36 @@ error_message = ""
 account_data = pd.DataFrame(columns=["Date", "Reach", "Lifetime Follower Count"])
 posts_data = pd.DataFrame(columns=["Post ID", "Likes Count", "Reach", "Saves", "Timestamp"])
 
-# For post selector
 selected_post = ""
 post_options = []
 
-# Post metrics - initialize with zeros
 post_likes = 0
 post_reach = 0
 post_saves = 0
 post_comments = 0
 post_engagement = 0.0
 
-# Account metrics for engagement dashboard
 current_followers = 0
 latest_reach = 0
 profile_views = 0
 
 def extract_caption_title(caption):
-    """Extract title from caption AFTER 'Transmissão ###:' pattern - REMOVE the prefix"""
+    """Extract ONLY the title, completely removing Transmissão prefix"""
     if pd.isna(caption) or not caption:
         return "Untitled"
     
-    # Match and EXTRACT only what comes AFTER "Transmissão ###:"
-    match = re.search(r'Transmissão\s+#?\d+:\s*(.+?)(?:\n|$)', caption, re.IGNORECASE)
-    if match:
-        title = match.group(1).strip()  # This is ONLY the title part
-        # Remove emojis
-        title = re.sub(r'[^\w\s,.:!?-]', '', title)
-        # Limit to 40 chars for dropdown
-        return title[:40] + "..." if len(title) > 40 else title
+    # Remove the entire "Transmissão #003:" part
+    clean = re.sub(r'^.*?Transmissão\s+#?\d+:\s*', '', str(caption), flags=re.IGNORECASE)
     
-    # Fallback: remove any Transmissão prefix if exists
-    clean_caption = re.sub(r'Transmissão\s+#?\d+:\s*', '', caption, flags=re.IGNORECASE)
-    first_line = clean_caption.split('\n')[0].strip()
+    # Take first line
+    first_line = clean.split('\n')[0].strip()
+    
+    # Remove emojis
     first_line = re.sub(r'[^\w\s,.:!?-]', '', first_line)
-    return first_line[:40] + "..." if len(first_line) > 40 else first_line
+    
+    return first_line[:45] + "..." if len(first_line) > 45 else first_line
 
 def calculate_engagement_rate(row):
-    """Calculate engagement rate: (Audience Comments + Likes + Saves) / Reach * 100"""
     try:
         audience_comments = float(row.get('Audience Comments Count', 0) or 0)
         likes = float(row.get('Likes Count', 0) or 0)
@@ -61,7 +53,6 @@ def calculate_engagement_rate(row):
         return 0.0
 
 def get_post_metrics(post_id):
-    """Get metrics for a specific post"""
     if posts_data.empty or post_id not in posts_data['Post ID'].values:
         return 0, 0, 0, 0, 0.0
     
@@ -98,7 +89,6 @@ try:
             posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors='coerce')
             posts_data = posts_data.sort_values("Timestamp", ascending=False)
         
-        # Create display column with ONLY content type and title (no Transmissão prefix)
         posts_data["Display Label"] = posts_data.apply(
             lambda row: f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))} ({row['Timestamp'].strftime('%b %d')})" if pd.notna(row.get('Timestamp')) else f"{row.get('Content Type', 'POST')}: {extract_caption_title(row.get('Caption', ''))}",
             axis=1
@@ -115,18 +105,14 @@ try:
             
             if selected_post:
                 post_likes, post_reach, post_saves, post_comments, post_engagement = get_post_metrics(selected_post)
-                print(f"Initial metrics loaded: Likes={post_likes}, Reach={post_reach}, Engagement={post_engagement}%")
 
 except Exception as e:
-    error_message = f"⚠️ {e}. Check Airtable config/env."
-    print(f"Error loading data: {e}")
+    error_message = f"⚠️ {e}"
+    print(f"Error: {e}")
 
 def update_post_metrics(state):
-    """Update post metrics when selection changes"""
     state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement = get_post_metrics(state.selected_post)
-    print(f"Updated metrics: Likes={state.post_likes}, Reach={state.post_reach}")
 
-# Root page with navigation
 root_page = """
 <|layout|columns=250px 1fr|
 <|part|class_name=sidebar|
@@ -151,31 +137,24 @@ root_page = """
 |>
 """
 
-# Engagement Dashboard
 engagement_dashboard_layout = """
 # 📊 Account Engagement Overview
 
-<|{error_message}|text|class_name=error-message|>
+<|layout|columns=1 1 1|gap=20px|class_name=metrics-grid|
 
-<|container|
-
-<|container|class_name=metrics-grid|
-
-<|container|class_name=metric-card|
-## 👥 Current Followers
-### {current_followers:,}
+<|
+<|text|class_name=metric-label|## 👥 Current Followers|>
+<|text|class_name=metric-number|{current_followers:,}|>
 |>
 
-<|container|class_name=metric-card|
-## 📈 Latest Reach
-### {latest_reach:,}
+<|
+<|text|class_name=metric-label|## 📈 Latest Reach|>
+<|text|class_name=metric-number|{latest_reach:,}|>
 |>
 
-<|container|class_name=metric-card|
-## 👁️ Profile Views
-### {profile_views:,}
-|>
-
+<|
+<|text|class_name=metric-label|## 👁️ Profile Views|>
+<|text|class_name=metric-number|{profile_views:,}|>
 |>
 
 |>
@@ -189,24 +168,19 @@ engagement_dashboard_layout = """
 <|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|>
 """
 
-# Post Performance
 post_performance_layout = """
 # 🎬 Post Performance Analysis
 
-<|container|
+<|layout|columns=1 1|gap=20px|class_name=metrics-grid|
 
-<|container|class_name=metrics-grid|
-
-<|container|class_name=metric-card|
-## 📊 Total Posts
-### {len(posts_data)}
+<|
+<|text|class_name=metric-label|## 📊 Total Posts|>
+<|text|class_name=metric-number|{len(posts_data)}|>
 |>
 
-<|container|class_name=metric-card|
-## 💖 Total Likes
-### {int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0:,}
-|>
-
+<|
+<|text|class_name=metric-label|## 💖 Total Likes|>
+<|text|class_name=metric-number|{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0:,}|>
 |>
 
 |>
@@ -217,40 +191,37 @@ post_performance_layout = """
 
 **Select a Post:**
 
-<|{selected_post}|selector|lov={post_options}|dropdown|class_name=post-selector|on_change=update_post_metrics|>
+<|{selected_post}|selector|lov={post_options}|dropdown|on_change=update_post_metrics|>
 
-<|container|class_name=metrics-grid-3|
+<|layout|columns=1 1 1|gap=15px|class_name=metrics-grid|
 
-<|container|class_name=metric-card|
-**Likes**
-### {post_likes:,}
+<|
+<|text|class_name=metric-label|**Likes**|>
+<|text|class_name=metric-number|{post_likes:,}|>
 |>
 
-<|container|class_name=metric-card|
-**Reach**
-### {post_reach:,}
+<|
+<|text|class_name=metric-label|**Reach**|>
+<|text|class_name=metric-number|{post_reach:,}|>
 |>
 
-<|container|class_name=metric-card|
-**Saves**
-### {post_saves:,}
+<|
+<|text|class_name=metric-label|**Saves**|>
+<|text|class_name=metric-number|{post_saves:,}|>
 |>
 
 |>
 
-<|container|class_name=metrics-grid-2|
+<|layout|columns=1 1|gap=15px|class_name=metrics-grid|
 
-<|container|class_name=metric-card|
-**Audience Comments**
-### {post_comments:,}
+<|
+<|text|class_name=metric-label|**Audience Comments**|>
+<|text|class_name=metric-number|{post_comments:,}|>
 |>
 
-<|container|class_name=metric-card|
-**Engagement Rate**
-### {post_engagement:.2f}%
-<|text|class_name=formula-subtitle|
-*(Audience Comments + Likes + Saves) / Reach × 100*
-|>
+<|
+<|text|class_name=metric-label|**Engagement Rate**|>
+<|text|class_name=metric-number|{post_engagement:.2f}%|>
 |>
 
 |>
@@ -258,19 +229,18 @@ post_performance_layout = """
 ---
 
 ## 📈 Performance Trends
+*Engagement Rate = (Audience Comments + Likes + Saves) / Reach × 100*
 
-<|{posts_data}|chart|type=scatter|x=Timestamp|y=Engagement Rate|mode=markers|title=Engagement Rate Over Time|>
+<|{posts_data}|chart|type=scatter|mode=lines+markers|x=Timestamp|y=Engagement Rate|title=Engagement Rate Over Time|>
 
 ---
 
 ## 🏆 Top 5 Performers
-
 *Engagement Rate = (Audience Comments + Likes + Saves) / Reach × 100*
 
 <|{posts_data.nlargest(5, 'Engagement Rate')[['Display Label', 'Likes Count', 'Reach', 'Saves', 'Audience Comments Count', 'Engagement Rate']] if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
 """
 
-# Other pages
 content_efficiency_layout = """
 # ⚙️ Content Efficiency Dashboard
 
@@ -283,7 +253,6 @@ semantics_layout = """
 Coming soon!
 """
 
-# Define page routes
 pages = {
     "/": root_page,
     "Engagement_Dashboard": engagement_dashboard_layout,
@@ -292,7 +261,6 @@ pages = {
     "Semantics_Sentiment": semantics_layout,
 }
 
-# Launch
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     Gui(pages=pages, css_file="style.css").run(
