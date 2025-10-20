@@ -516,6 +516,59 @@ hr {
     animation: rotate 2s linear infinite;
 }
 
+/* ---------- NAV: bigger, nicer sidebar links ---------- */
+.sidebar {
+  padding-right: 14px;
+}
+
+.sidebar a {
+  display: block;
+  margin: 8px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 18px;            /* bigger text */
+  line-height: 1.2;
+  color: #EDE9FE;             /* soft lilac */
+  text-decoration: none;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(238, 153, 255, 0.16);
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+
+.sidebar a:hover {
+  background: linear-gradient(90deg, rgba(255,173,55,.18), rgba(173,109,255,.18));
+  border-color: rgba(238, 153, 255, 0.35);
+  transform: translateX(2px);
+}
+
+.sidebar a:active {
+  transform: translateX(1px) scale(0.99);
+}
+
+/* Optional: space under section headings in the sidebar */
+.sidebar h2, .sidebar h3, .sidebar h4 {
+  margin-top: 18px;
+  margin-bottom: 10px;
+  letter-spacing: .06em;
+}
+
+/* ---------- Small muted helper text (e.g., "Refreshing…") ---------- */
+.muted {
+  opacity: 0.75;
+  font-size: 14px;
+  margin-left: 10px;
+}
+
+/* ---------- Extra space around refresh buttons, if you add class btn-refresh ---------- */
+.btn-refresh {
+  margin: 10px 0 18px;
+}
+
+/* Keep charts comfortably narrow (you already set bottom margin to 32px) */
+.narrow {
+  max-width: 1100px;
+  margin: 0 auto 32px;
+}
 
 /* limit chart width and center */
 .narrow { 
