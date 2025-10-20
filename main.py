@@ -24,8 +24,69 @@ profile_views = 0
 total_posts = 0
 total_likes = 0
 
+# Aggregation controls
+agg_granularity = 'Day'  # 'Day' or 'Week'
+date_start = ''  # YYYY-MM-DD
+date_end = ''  # YYYY-MM-DD
+agg_engagement_over_time = pd.DataFrame(columns=['Date', 'Engagement Rate'])
+
 def calculate_engagement_rate(row):
     try:
+def _parse_date(s):
+    try:
+        return pd.to_datetime(s).date() if s else None
+    except Exception:
+        return None
+
+def recompute_agg(state=None):
+    global agg_engagement_over_time
+    df = posts_data.copy()
+    agg_engagement_over_time = pd.DataFrame(columns=['Date', 'Engagement Rate'])
+    if df.empty or 'Timestamp' not in df.columns:
+        if state is not None:
+            state.agg_engagement_over_time = agg_engagement_over_time
+        return
+
+    # Prepare datetime
+    df['__dt'] = pd.to_datetime(df['Timestamp'], errors='coerce')
+    df = df.dropna(subset=['__dt'])
+
+    # Date filters
+    _start = _parse_date(state.date_start if state is not None else date_start)
+    _end = _parse_date(state.date_end if state is not None else date_end)
+    if _start:
+        df = df[df['__dt'].dt.date >= _start]
+    if _end:
+        df = df[df['__dt'].dt.date <= _end]
+
+    # Grouping
+    gran = (state.agg_granularity if state is not None else agg_granularity) or 'Day'
+    if gran == 'Week':
+        key = df['__dt'].dt.to_period('W').apply(lambda p: p.start_time.date())
+    else:
+        key = df['__dt'].dt.date
+
+    group = df.groupby(key).agg({
+        'Likes Count': 'sum',
+        'Audience Comments Count': 'sum',
+        'Saves': 'sum',
+        'Reach': 'sum',
+    }).reset_index().rename(columns={'index':'Date'})
+    group = group.rename(columns={group.columns[0]:'Date'})
+
+    if len(group) > 0:
+        group['Engagement Rate'] = (
+            (group.get('Likes Count', 0) + group.get('Audience Comments Count', 0) + group.get('Saves', 0))
+            / group.get('Reach', 0).replace(0, pd.NA)
+        ) * 100
+        group['Engagement Rate'] = group['Engagement Rate'].fillna(0).round(2)
+        agg_engagement_over_time = group[['Date', 'Engagement Rate']]
+    if state is not None:
+        state.agg_engagement_over_time = agg_engagement_over_time
+
+def _on_agg_change(state):
+    recompute_agg(state)
+
         audience_comments = float(row.get('Audience Comments Count', 0) or 0)
         likes = float(row.get('Likes Count', 0) or 0)
         saves = float(row.get('Saves', 0) or 0)
@@ -86,7 +147,20 @@ try:
         total_posts = len(posts_data)
         total_likes = int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0
         
-        if "Post ID" in posts_data.columns:
+        
+        # Initialize default date range for aggregation controls
+        try:
+            if 'Timestamp' in posts_data.columns and len(posts_data) > 0:
+                _dt = pd.to_datetime(posts_data['Timestamp'], errors='coerce').dropna()
+                if len(_dt) > 0:
+                    date_start = str(_dt.min().date())
+                    date_end = str(_dt.max().date())
+        except Exception as _e:
+            print('Date range init error:', _e)
+
+        # Build initial aggregate dataframe
+        recompute_agg()
+if "Post ID" in posts_data.columns:
             post_options = list(zip(
                 posts_data["Post ID"].tolist(),
                 posts_data["Display Label"].tolist()
@@ -96,6 +170,36 @@ try:
             if selected_post:
                 post_likes, post_reach, post_saves, post_comments, post_engagement = get_post_metrics(selected_post)
                 print(f"✓ Loaded post metrics: Likes={post_likes:,}, Reach={post_reach:,}, Engagement={post_engagement:.2f}%")
+
+    # ===== Aggregate engagement rate over time (by day) =====
+    agg_engagement_over_time = pd.DataFrame(columns=["Date", "Engagement Rate"])
+    try:
+        if not posts_data.empty:
+            # Ensure Timestamp -> date
+            if "Timestamp" in posts_data.columns:
+                tmp = posts_data.copy()
+                tmp["Date"] = pd.to_datetime(tmp["Timestamp"], errors="coerce").dt.date
+            else:
+                tmp = posts_data.copy()
+                tmp["Date"] = pd.NaT
+
+            # Sum metrics per date
+            group = tmp.groupby("Date", dropna=True).agg({
+                "Likes Count": "sum",
+                "Audience Comments Count": "sum",
+                "Saves": "sum",
+                "Reach": "sum",
+            }).reset_index()
+
+            group["Engagement Rate"] = (
+                (group.get("Likes Count", 0) + group.get("Audience Comments Count", 0) + group.get("Saves", 0))
+                / group.get("Reach", 0).replace(0, pd.NA)
+            ) * 100
+            group["Engagement Rate"] = group["Engagement Rate"].fillna(0).round(2)
+            group = group.rename(columns={"Date": "Date"})
+            agg_engagement_over_time = group[["Date", "Engagement Rate"]]
+    except Exception as _e:
+        print("Aggregate engagement compute error:", _e)
 
 except Exception as e:
     error_message = f"⚠️ {e}"
@@ -157,6 +261,21 @@ engagement_dashboard_layout = """
 <|{account_data}|chart|type=line|x=Date|y[1]=Reach|y[2]=Lifetime Follower Count|title=Reach & Follower Growth|>
 
 <|{account_data}|chart|type=bar|x=Day|y=Reach|title=Reach by Day of Week|>
+
+
+<|part|class_name=panel|
+## 📈 Total Engagement Rate Over Time (All Posts)
+<|layout|columns=1 1 1|gap=10px|
+<|Group by|label|>
+<|{agg_granularity}|selector|lov=Day;Week|dropdown|on_change=_on_agg_change|>
+<|Start date|label|>
+<|{date_start}|date|on_change=_on_agg_change|>
+<|End date|label|>
+<|{date_end}|date|on_change=_on_agg_change|>
+|>
+
+<|{agg_engagement_over_time}|chart|type=line|x=Date|y=Engagement Rate|title=Total Engagement Rate Over Time|>
+|part|>
 """
 
 post_performance_layout = """
