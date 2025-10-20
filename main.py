@@ -21,6 +21,8 @@ post_engagement = 0.0
 current_followers = 0
 latest_reach = 0
 profile_views = 0
+total_posts = 0
+total_likes = 0
 
 def calculate_engagement_rate(row):
     try:
@@ -65,7 +67,7 @@ try:
             current_followers = int(latest_row.get('Lifetime Follower Count', 0) or 0)
             latest_reach = int(latest_row.get('Reach', 0) or 0)
             profile_views = int(latest_row.get('Lifetime Profile Views', 0) or 0)
-            print(f"Loaded metrics: Followers={current_followers}, Reach={latest_reach}, Views={profile_views}")
+            print(f"✓ Loaded account metrics: Followers={current_followers:,}, Reach={latest_reach:,}, Views={profile_views:,}")
     
     posts_data = all_data.get("ig_posts", pd.DataFrame())
     if not posts_data.empty:
@@ -81,6 +83,9 @@ try:
         
         posts_data["Engagement Rate"] = posts_data.apply(calculate_engagement_rate, axis=1)
         
+        total_posts = len(posts_data)
+        total_likes = int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0
+        
         if "Post ID" in posts_data.columns:
             post_options = list(zip(
                 posts_data["Post ID"].tolist(),
@@ -90,11 +95,11 @@ try:
             
             if selected_post:
                 post_likes, post_reach, post_saves, post_comments, post_engagement = get_post_metrics(selected_post)
-                print(f"Initial post metrics: Likes={post_likes}, Reach={post_reach}")
+                print(f"✓ Loaded post metrics: Likes={post_likes:,}, Reach={post_reach:,}, Engagement={post_engagement:.2f}%")
 
 except Exception as e:
     error_message = f"⚠️ {e}"
-    print(f"Error: {e}")
+    print(f"✗ Error: {e}")
 
 def update_post_metrics(state):
     state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement = get_post_metrics(state.selected_post)
@@ -130,17 +135,17 @@ engagement_dashboard_layout = """
 
 <|
 ## 👥 Current Followers
-**{current_followers:,}**
+<|{current_followers}|text|format=,|class_name=metric-number|>
 |>
 
 <|
 ## 📈 Latest Reach
-**{latest_reach:,}**
+<|{latest_reach}|text|format=,|class_name=metric-number|>
 |>
 
 <|
 ## 👁️ Profile Views
-**{profile_views:,}**
+<|{profile_views}|text|format=,|class_name=metric-number|>
 |>
 
 |>
@@ -161,12 +166,12 @@ post_performance_layout = """
 
 <|
 ## 📊 Total Posts
-**{len(posts_data)}**
+<|{total_posts}|text|class_name=metric-number|>
 |>
 
 <|
 ## 💖 Total Likes
-**{int(posts_data['Likes Count'].sum()) if 'Likes Count' in posts_data.columns else 0:,}**
+<|{total_likes}|text|format=,|class_name=metric-number|>
 |>
 
 |>
@@ -183,17 +188,17 @@ post_performance_layout = """
 
 <|
 **Likes**  
-**{post_likes:,}**
+<|{post_likes}|text|format=,|class_name=metric-number|>
 |>
 
 <|
 **Reach**  
-**{post_reach:,}**
+<|{post_reach}|text|format=,|class_name=metric-number|>
 |>
 
 <|
 **Saves**  
-**{post_saves:,}**
+<|{post_saves}|text|format=,|class_name=metric-number|>
 |>
 
 |>
@@ -202,12 +207,12 @@ post_performance_layout = """
 
 <|
 **Audience Comments**  
-**{post_comments:,}**
+<|{post_comments}|text|format=,|class_name=metric-number|>
 |>
 
 <|
 **Engagement Rate**  
-**{post_engagement:.2f}%**
+<|{post_engagement}|text|format=%.2f|class_name=metric-number|>%
 |>
 
 |>
