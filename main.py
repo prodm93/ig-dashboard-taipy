@@ -212,8 +212,8 @@ try:
                                 f"{row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
                     axis=1
                 )
-            post_options = list(zip(posts_data["Post ID"].tolist(), posts_data["Display Label"].tolist()))
-            selected_post = posts_data["Post ID"].iloc[0] if len(posts_data) > 0 else ""
+            post_options = list(zip(posts_data["Post ID"].astype(str).tolist(), posts_data["Display Label"].tolist()))
+            selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) > 0 else ""
             if selected_post:
                 (post_likes, post_reach, post_saves,
                  post_comments, post_engagement) = get_post_metrics(selected_post)
@@ -234,7 +234,19 @@ def update_post_metrics(state):
      state.post_comments,
      state.post_engagement) = get_post_metrics(state.selected_post)
     print('Post changed ->', state.selected_post, 'metrics:', state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement)
+    # mirror to globals for any widgets bound to globals
+    global post_likes, post_reach, post_saves, post_comments, post_engagement
+    post_likes = state.post_likes
+    post_reach = state.post_reach
+    post_saves = state.post_saves
+    post_comments = state.post_comments
+    post_engagement = state.post_engagement
+    # update formatted strings
     state.post_likes_fmt = fmt_int(state.post_likes)
+    state.post_reach_fmt = fmt_int(state.post_reach)
+    state.post_saves_fmt = fmt_int(state.post_saves)
+    state.post_comments_fmt = fmt_int(state.post_comments)
+    refresh_formats()
     state.post_reach_fmt = fmt_int(state.post_reach)
     state.post_saves_fmt = fmt_int(state.post_saves)
     state.post_comments_fmt = fmt_int(state.post_comments)
@@ -332,7 +344,7 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 
 **Select a Post:**
 
-<|{selected_post}|selector|lov={post_options}|dropdown|on_change=update_post_metrics|>
+<|{selected_post}|selector|lov={post_options}|dropdown|value_by_id=True|on_change=update_post_metrics|>
 
 <|layout|columns=1 1 1|gap=15px|class_name=metrics-grid|
 
