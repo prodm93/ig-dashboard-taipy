@@ -435,10 +435,13 @@ root_page = """<|layout|columns=250px 1fr|
 
 engagement_dashboard_layout = """# 📊 Account Engagement Overview
 
-<|layout|columns=auto auto|gap=16px|class_name=inline-controls|
+<|layout|columns=auto auto auto|gap=24px|class_name=inline-controls|
 <|**Updated at (America/Sao_Paulo):** {last_updated_str}|text|class_name=inline-text|>
 <|Refresh data|button|class_name=btn-refresh|on_action=reload_data|>
+<|{refresh_status}|text|class_name=muted|>
 |>
+
+
 
 <|layout|columns=1 1 1|gap=20px|class_name=metrics-grid|
 
@@ -487,10 +490,13 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 
 post_performance_layout = """# 🎬 Post Performance Analysis
 
-<|layout|columns=auto auto|gap=16px|class_name=inline-controls|
+<|layout|columns=auto auto auto|gap=24px|class_name=inline-controls|
 <|**Updated at (America/Sao_Paulo):** {last_updated_str}|text|class_name=inline-text|>
 <|Refresh data|button|class_name=btn-refresh|on_action=reload_data|>
+<|{refresh_status}|text|class_name=muted|>
 |>
+
+
 
 <|layout|columns=1 1|gap=20px|class_name=metrics-grid|
 
