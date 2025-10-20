@@ -5,6 +5,9 @@ import pandas as pd
 from taipy.gui import Gui
 from data.config_loader import get_airtable_config
 from data.airtable_fetch import fetch_all_tables
+from zoneinfo import ZoneInfo  # stdlib tz, no extra dependency
+from datetime import datetime
+
 
 # -------------------------------
 # State / Globals
@@ -34,6 +37,9 @@ agg_granularity = "Day"  # Day | Week
 date_start = ""          # YYYY-MM-DD
 date_end = ""            # YYYY-MM-DD
 agg_engagement_over_time = pd.DataFrame(columns=["Date", "Engagement Rate"])
+
+APP_TZ = ZoneInfo("America/Sao_Paulo")  # display timezone
+last_updated_str = "—"
 
 # -------------------------------
 # Helpers
@@ -151,6 +157,129 @@ def refresh_formats():
     post_comments_fmt = fmt_int(post_comments)
     total_likes_fmt = fmt_int(total_likes)
 
+def _latest_updated_at_str():
+    """
+    Look for a column named 'Updated At' (or common variants) in each DF,
+    take the latest, convert to São Paulo time, and return a pretty string.
+    """
+    def _pick_col(df):
+        if df is None or df.empty:
+            return None
+        for name in ("Updated At", "Updated_at", "updated_at"):
+            if name in df.columns:
+                return name
+        return None
+
+    candidates = []
+    for df in (account_data, posts_data):
+        col = _pick_col(df)
+        if col:
+            s = pd.to_datetime(df[col], errors="coerce", utc=True)
+            s = s.dropna()
+            if not s.empty:
+                candidates.append(s.max())
+
+    if not candidates:
+        return "—"
+
+    # Convert the most recent to São Paulo time
+    latest = max(candidates).tz_convert(APP_TZ)
+    return latest.strftime("%Y-%m-%d %H:%M %Z")
+
+
+def reload_data(state=None):
+    """
+    Re-fetch Airtable data and recompute derived values.
+    Mirrors the initial load path, then refreshes charts/cards and 'Updated at'.
+    """
+    global account_data, posts_data, total_posts, total_likes
+    global current_followers, latest_reach, profile_views
+    global post_options, selected_post, last_updated_str
+    global post_likes, post_reach, post_saves, post_comments, post_engagement
+    try:
+        cfg = get_airtable_config()
+        all_data = fetch_all_tables(cfg["api_key"], cfg["base_id"], cfg["tables"])
+
+        # Account metrics
+        account_data = all_data.get("ig_accounts", pd.DataFrame())
+        if not account_data.empty and "Date" in account_data.columns:
+            account_data["Date"] = pd.to_datetime(account_data["Date"], errors="coerce")
+            account_data = account_data.sort_values("Date")
+            account_data["Day"] = account_data["Date"].dt.day_name()
+
+            if len(account_data) > 0:
+                latest_row = account_data.iloc[-1]
+                current_followers = int(nz(latest_row.get("Lifetime Follower Count", 0)))
+                latest_reach = int(nz(latest_row.get("Reach", 0)))
+                profile_views = int(nz(latest_row.get("Lifetime Profile Views", 0)))
+
+        # Posts
+        posts_data = all_data.get("ig_posts", pd.DataFrame())
+        if not posts_data.empty:
+            if "Timestamp" in posts_data.columns:
+                posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors="coerce")
+                posts_data = posts_data.sort_values("Timestamp", ascending=False)
+
+            if "Post ID" in posts_data.columns:
+                posts_data["Post ID"] = posts_data["Post ID"].astype(str)
+
+            posts_data["Engagement Rate"] = posts_data.apply(calculate_engagement_rate, axis=1)
+
+            total_posts = len(posts_data)
+            if "Likes Count" in posts_data.columns:
+                total_likes = int(pd.to_numeric(posts_data["Likes Count"], errors="coerce").fillna(0).sum())
+
+            # Date range defaults for aggregation controls
+            try:
+                if "Timestamp" in posts_data.columns and len(posts_data) > 0:
+                    _dt = pd.to_datetime(posts_data["Timestamp"], errors="coerce").dropna()
+                    if len(_dt) > 0:
+                        # preserve user-set values if present; otherwise set defaults
+                        if not state or not getattr(state, "date_start", ""):
+                            globals()["date_start"] = str(_dt.min().date())
+                        if not state or not getattr(state, "date_end", ""):
+                            globals()["date_end"] = str(_dt.max().date())
+            except Exception as _e:
+                print("Date range init error (reload):", _e)
+
+            # Selector options & default
+            if "Post ID" in posts_data.columns:
+                if "Display Label" not in posts_data.columns:
+                    posts_data["Display Label"] = posts_data.apply(
+                        lambda row: f"{row.get('Content Type', 'POST')}: "
+                                    f"{row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
+                        axis=1
+                    )
+                post_options = list(zip(posts_data["Post ID"].astype(str).tolist(),
+                                        posts_data["Display Label"].tolist()))
+                # keep current selection if possible
+                if state:
+                    if getattr(state, "selected_post", "") not in posts_data["Post ID"].astype(str).tolist():
+                        state.selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) else ""
+                    # refresh post-level cards for current selection
+                    update_post_metrics(state)
+                else:
+                    if selected_post not in posts_data["Post ID"].astype(str).tolist():
+                        selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) else ""
+                        (post_likes, post_reach, post_saves,
+                         post_comments, post_engagement) = get_post_metrics(selected_post)
+
+        # Rebuild aggregate and refresh card formats
+        if state:
+            recompute_agg(state)
+        else:
+            recompute_agg()
+        refresh_formats()
+
+        # Update 'Updated at' string (São Paulo time)
+        last_updated_str = _latest_updated_at_str()
+        if state:
+            state.last_updated_str = last_updated_str
+
+        print("✓ Data reloaded. Updated at:", last_updated_str)
+    except Exception as e:
+        print("Reload error:", e)
+
 
 # -------------------------------
 # Data load
@@ -226,6 +355,10 @@ try:
 except Exception as e:
     error_message = f"⚠️ {e}"
     print(f"✗ Error: {e}")
+    
+
+last_updated_str = _latest_updated_at_str()
+
 
 def update_post_metrics(state):
     (state.post_likes,
@@ -309,6 +442,10 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 <|part|class_name=panel|
 ## 📈 Total Engagement Rate Over Time (All Posts)
 *Engagement Rate = (Audience Comments + Likes + Saves) / Reach × 100*
+**Updated at (America/Sao_Paulo):** {last_updated_str}
+
+<|Refresh data|button|on_action=reload_data|>
+
 <|layout|columns=1 1 1|gap=10px|
 **Group by**
 <|{agg_granularity}|selector|lov=Day;Week|dropdown|on_change=_on_agg_change|>
@@ -339,6 +476,9 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 |>
 
 ---
+**Updated at (America/Sao_Paulo):** {last_updated_str}
+
+<|Refresh data|button|on_action=reload_data|>
 
 ## 🔍 Individual Post Analysis
 
@@ -412,11 +552,44 @@ pages = {
     "Semantics_Sentiment": semantics_layout,
 }
 
+# -----------------------------------------------
+# OPTIONAL CONSERVATIVE POLLING (OFF BY DEFAULT)
+# Polls infrequently to avoid Airtable quota burn.
+# To enable, uncomment the thread start lines below
+# and set REFRESH_MINUTES to something large.
+# -----------------------------------------------
+# import threading, time
+# REFRESH_MINUTES = int(os.getenv("REFRESH_MINUTES", "180"))  # 3 hours default
+#
+# def _poll_forever(gui):
+#     while True:
+#         try:
+#             gui.call(reload_data)  # run reload on GUI loop (Taipy 3.1+)
+#         except Exception as e:
+#             print("Auto-refresh error:", e)
+#         time.sleep(REFRESH_MINUTES * 60)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    Gui(pages=pages, css_file="style.css").run(
+    app = Gui(pages=pages, css_file="style.css")
+
+    # --- OPTIONAL polling start (uncomment to enable) ---
+    # import threading, time
+    # REFRESH_MINUTES = int(os.getenv("REFRESH_MINUTES", "180"))  # 3 hours default
+    # def _poll_forever(gui):
+    #     while True:
+    #         try:
+    #             gui.call(reload_data)  # Taipy 3.1+
+    #         except Exception as e:
+    #             print("Auto-refresh error:", e)
+    #         time.sleep(REFRESH_MINUTES * 60)
+    # threading.Thread(target=_poll_forever, args=(app,), daemon=True).start()
+    # ----------------------------------------------------
+
+    app.run(
         title="Malugo Analytics ✨",
         host="0.0.0.0",
         port=port,
         dark_mode=True,
     )
+
