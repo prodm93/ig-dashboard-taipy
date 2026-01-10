@@ -1,12 +1,21 @@
-
 import os
 import math
+import re
+import colorsys
+import unicodedata
 import pandas as pd
 from taipy.gui import Gui
 from data.config_loader import get_airtable_config
 from data.airtable_fetch import fetch_all_tables
-from zoneinfo import ZoneInfo  # stdlib tz, no extra dependency
+from zoneinfo import ZoneInfo
 from datetime import datetime
+
+import nltk
+from nltk.data import find
+from nltk.corpus import wordnet
+from nltk.stem import WordNetLemmatizer
+
+from wordcloud import WordCloud
 
 
 # -------------------------------
@@ -38,11 +47,25 @@ date_start = ""          # YYYY-MM-DD
 date_end = ""            # YYYY-MM-DD
 agg_engagement_over_time = pd.DataFrame(columns=["Date", "Engagement Rate"])
 
-APP_TZ = ZoneInfo("America/Sao_Paulo")  # display timezone
+APP_TZ = ZoneInfo("America/Sao_Paulo")
 last_updated_str = "—"
 
 is_refreshing = False
 refresh_status = ""
+
+# -------------------------------
+# Semantics / Hook word cloud state
+# -------------------------------
+hook_metric = "Likes"
+hook_metric_lov = [
+    ("Likes", "Likes"),
+    ("Audience Comments", "Total Audience Comments"),
+    ("Likes + Audience Comments", "Total Likes + Audience Comments"),
+    ("Average Watch Time", "Average Watch Time"),
+]
+hook_wordcloud_path = ""  # generated PNG
+hook_top_words = pd.DataFrame(columns=["word", "freq", "metric_avg"])
+
 
 # -------------------------------
 # Helpers
@@ -58,6 +81,354 @@ def nz(x, default=0):
     except Exception:
         return default
 
+
+# -------------------------------
+# Semantics helpers
+# - Emoji stripping
+# - Lemmatization (EN, POS-aware)
+# - Custom removal list (NOT generic stopwords)
+#   We REMOVE: articles, most prepositions, generic linkers/fillers
+#   We KEEP: pronouns, question words, action verbs, intensity words
+# -------------------------------
+def _ensure_nltk():
+    # wordnet for English lemmatization
+    try:
+        find("corpora/wordnet")
+    except LookupError:
+        nltk.download("wordnet", quiet=True)
+
+    # wordnet multi-lingual index (often used by wordnet)
+    try:
+        find("corpora/omw-1.4")
+    except LookupError:
+        nltk.download("omw-1.4", quiet=True)
+
+    # POS tagger (English) for better lemmatization
+    try:
+        find("taggers/averaged_perceptron_tagger")
+    except LookupError:
+        nltk.download("averaged_perceptron_tagger", quiet=True)
+
+_ensure_nltk()
+_LEMMATIZER = WordNetLemmatizer()
+
+# Custom "remove list" — not full stopwords.
+# Articles + most prepositions + generic linking/filler words.
+REMOVE_WORDS = set([
+    # Portuguese articles/determiners (remove)
+    "a", "o", "as", "os", "um", "uma", "uns", "umas",
+    "ao", "aos", "à", "às", "da", "das", "do", "dos",
+    "dum", "duma", "duns", "dumas",
+    "no", "na", "nos", "nas",
+    "num", "numa", "nuns", "numas",
+
+    # English articles/determiners (remove)
+    "a", "an", "the",
+
+    # Portuguese prepositions (remove most)
+    "de", "em", "para", "pra", "com", "por", "sem", "sobre", "entre", "até",
+    "contra", "desde", "perante", "após", "antes", "durante", "trás",
+
+    # English prepositions/common function words (remove most)
+    "to", "of", "in", "on", "for", "with", "from", "by", "at", "into", "onto", "over",
+    "under", "between", "through", "during", "before", "after", "without", "against",
+    "about", "around",
+
+    # Generic linking words / filler / discourse markers (remove)
+    "e", "ou", "mas", "porém", "porque", "pois", "então", "daí", "assim", "tipo", "né", "eh",
+    "tá", "ta", "ok", "okay", "uai", "bom", "bem", "aí", "ai",
+    "and", "or", "but", "so", "then", "thus", "like", "ok", "okay",
+])
+
+# Words we explicitly KEEP even if they overlap with REMOVE_WORDS
+# (e.g., question words, pronouns, direct address)
+KEEP_WORDS = set([
+    # Portuguese pronouns/direct address
+    "você", "vocês", "vc", "vcs", "eu", "nós", "nos", "meu", "minha", "seu", "sua",
+
+    # Portuguese question words / question format
+    "como", "quando", "onde", "qual", "quais", "quem", "que", "quê",
+
+    # English pronouns / question words
+    "you", "your", "i", "we", "my", "me", "our",
+    "why", "how", "what", "when", "where", "which", "who",
+])
+
+# Multi-word question forms we want to preserve as single tokens
+# (so "por" can be removed elsewhere without killing "por que")
+QUESTION_PHRASES = {
+    ("por", "que"): "por_que",
+    ("o", "que"): "o_que",
+    ("pra", "que"): "pra_que",
+    ("para", "que"): "para_que",
+}
+
+
+def _strip_emojis(text: str) -> str:
+    """Remove most emoji/variation characters without extra dependencies."""
+    if not isinstance(text, str) or not text:
+        return ""
+    out = []
+    for ch in text:
+        cp = ord(ch)
+        if (
+            0x1F300 <= cp <= 0x1FAFF
+            or 0x2600 <= cp <= 0x26FF
+            or 0x2700 <= cp <= 0x27BF
+            or 0xFE00 <= cp <= 0xFE0F
+            or 0x1F1E6 <= cp <= 0x1F1FF
+            or cp == 0x200D
+        ):
+            continue
+        if unicodedata.category(ch) == "So":
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _is_mostly_ascii(token: str) -> bool:
+    """Heuristic: mostly ASCII => likely English."""
+    if not token:
+        return True
+    ascii_count = sum(1 for c in token if ord(c) < 128)
+    return (ascii_count / max(1, len(token))) >= 0.9
+
+
+def _nltk_pos_to_wordnet(tag: str):
+    if not tag:
+        return wordnet.NOUN
+    if tag.startswith("J"):
+        return wordnet.ADJ
+    if tag.startswith("V"):
+        return wordnet.VERB
+    if tag.startswith("R"):
+        return wordnet.ADV
+    return wordnet.NOUN
+
+
+def _fold_question_phrases(tokens):
+    """Fold multi-token question phrases into single tokens (e.g., 'por que' => 'por_que')."""
+    out = []
+    i = 0
+    while i < len(tokens):
+        if i + 1 < len(tokens):
+            pair = (tokens[i], tokens[i + 1])
+            if pair in QUESTION_PHRASES:
+                out.append(QUESTION_PHRASES[pair])
+                i += 2
+                continue
+        out.append(tokens[i])
+        i += 1
+    return out
+
+
+def _should_remove(tok: str) -> bool:
+    """Removal logic: remove if in REMOVE_WORDS unless explicitly kept."""
+    if tok in KEEP_WORDS:
+        return False
+    if tok in REMOVE_WORDS:
+        return True
+    return False
+
+
+def _tokenize_hook_text(text: str):
+    """
+    Tokenize Hook Text with:
+    - emoji stripping
+    - URL removal
+    - phrase folding for question forms
+    - custom removal list (not stopwords)
+    - English lemmatization (POS-aware)
+    """
+    if not isinstance(text, str):
+        return []
+
+    text = _strip_emojis(text).strip().lower()
+    if not text:
+        return []
+
+    text = re.sub(r"https?://\S+|www\.\S+", " ", text)
+
+    raw_tokens = re.findall(r"[a-zà-öø-ÿ']+", text, flags=re.IGNORECASE)
+
+    # basic clean
+    tokens = []
+    for t in raw_tokens:
+        t = t.strip("'")
+        if len(t) < 2:
+            continue
+        tokens.append(t)
+
+    if not tokens:
+        return []
+
+    # fold question phrases before removal (so "por" can be removed elsewhere)
+    tokens = _fold_question_phrases(tokens)
+
+    # POS tag (English); safe if some PT slips in
+    try:
+        tagged = nltk.pos_tag(tokens)
+    except Exception:
+        tagged = [(t, "") for t in tokens]
+
+    out = []
+    for tok, pos in tagged:
+        # Keep folded question tokens untouched
+        if tok in QUESTION_PHRASES.values():
+            out.append(tok)
+            continue
+
+        # Custom removal
+        if _should_remove(tok):
+            continue
+
+        # Lemmatize only for English-ish tokens; keep PT as-is (no stemming)
+        norm = tok
+        if _is_mostly_ascii(tok):
+            wn_pos = _nltk_pos_to_wordnet(pos)
+            norm = _LEMMATIZER.lemmatize(tok, pos=wn_pos)
+
+        # final sanity filters
+        if len(norm) < 2:
+            continue
+
+        out.append(norm)
+
+    return out
+
+
+def _get_metric_value(row, metric_name: str) -> float:
+    likes = float(nz(row.get("Likes Count", 0), 0) or 0)
+    aud = float(nz(row.get("Audience Comments Count", 0), 0) or 0)
+    awt = float(nz(row.get("Average Watch Time", 0), 0) or 0)
+
+    if metric_name == "Likes":
+        return likes
+    if metric_name == "Audience Comments":
+        return aud
+    if metric_name == "Likes + Audience Comments":
+        return likes + aud
+    if metric_name == "Average Watch Time":
+        return awt
+    return likes
+
+
+def _build_hook_word_stats(df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
+    """
+    Returns dataframe: word, freq, metric_avg
+    freq: token frequency across hooks
+    metric_avg: avg metric across posts containing the word (unique word per post)
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["word", "freq", "metric_avg"])
+
+    freq = {}
+    metric_sum = {}
+    metric_cnt = {}
+
+    for _, row in df.iterrows():
+        tokens = _tokenize_hook_text(row.get("Hook Text", ""))
+        if not tokens:
+            continue
+
+        for t in tokens:
+            freq[t] = freq.get(t, 0) + 1
+
+        mval = _get_metric_value(row, metric_name)
+        for t in set(tokens):
+            metric_sum[t] = metric_sum.get(t, 0.0) + float(mval)
+            metric_cnt[t] = metric_cnt.get(t, 0) + 1
+
+    rows = []
+    for w, f in freq.items():
+        cnt = metric_cnt.get(w, 0)
+        avg = (metric_sum.get(w, 0.0) / cnt) if cnt else 0.0
+        rows.append((w, int(f), float(avg)))
+
+    out = pd.DataFrame(rows, columns=["word", "freq", "metric_avg"])
+    out = out.sort_values(["freq", "metric_avg"], ascending=[False, False]).reset_index(drop=True)
+    return out
+
+
+def _warm_cool_rgb(norm01: float) -> str:
+    """0..1 => cool (blue/purple) to warm (red/orange)."""
+    x = max(0.0, min(1.0, float(norm01)))
+    hue = (240.0 - 220.0 * x) / 360.0
+    sat = 0.85
+    val = 0.95
+    r, g, b = colorsys.hsv_to_rgb(hue, sat, val)
+    return f"rgb({int(r*255)}, {int(g*255)}, {int(b*255)})"
+
+
+def generate_hook_wordcloud(metric_name: str, state=None):
+    global hook_wordcloud_path, hook_top_words, posts_data
+
+    if posts_data is None or posts_data.empty:
+        hook_wordcloud_path = ""
+        hook_top_words = pd.DataFrame(columns=["word", "freq", "metric_avg"])
+        if state:
+            state.hook_wordcloud_path = hook_wordcloud_path
+            state.hook_top_words = hook_top_words
+        return
+
+    df = posts_data.copy()
+
+    # Only VIDEO + non-empty Hook Text
+    if "Content Type" in df.columns:
+        df = df[df["Content Type"].astype(str).str.upper() == "VIDEO"]
+    if "Hook Text" in df.columns:
+        df = df[df["Hook Text"].astype(str).str.strip().ne("")]
+    else:
+        df = df.iloc[0:0]
+
+    stats = _build_hook_word_stats(df, metric_name)
+    hook_top_words = stats.head(50).copy()
+
+    if stats.empty:
+        hook_wordcloud_path = ""
+        if state:
+            state.hook_wordcloud_path = hook_wordcloud_path
+            state.hook_top_words = hook_top_words
+        return
+
+    freq_dict = dict(zip(stats["word"], stats["freq"]))
+
+    metric_map = dict(zip(stats["word"], stats["metric_avg"]))
+    mn = float(stats["metric_avg"].min())
+    mx = float(stats["metric_avg"].max())
+    denom = (mx - mn) if (mx - mn) != 0 else 1.0
+
+    def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
+        v = metric_map.get(word, mn)
+        norm = (float(v) - mn) / denom
+        return _warm_cool_rgb(norm)
+
+    wc = WordCloud(
+        width=1400,
+        height=700,
+        background_color="white",
+        collocations=False,
+        prefer_horizontal=0.95,
+    ).generate_from_frequencies(freq_dict)
+
+    wc = wc.recolor(color_func=color_func)
+
+    out_path = os.path.join(os.getcwd(), "hook_wordcloud.png")
+    wc.to_file(out_path)
+
+    hook_wordcloud_path = "hook_wordcloud.png"
+
+    if state:
+        state.hook_wordcloud_path = hook_wordcloud_path
+        state.hook_top_words = hook_top_words
+
+
+def update_hook_wordcloud(state):
+    global hook_metric
+    hook_metric = state.hook_metric
+    generate_hook_wordcloud(hook_metric, state=state)
+
+
 def calculate_engagement_rate(row):
     try:
         audience_comments = float(nz(row.get("Audience Comments Count", 0)))
@@ -69,6 +440,7 @@ def calculate_engagement_rate(row):
         return 0.0
     except Exception:
         return 0.0
+
 
 def get_post_metrics(post_id):
     if posts_data.empty or str(post_id) not in posts_data.get("Post ID", []).astype(str).tolist():
@@ -82,14 +454,15 @@ def get_post_metrics(post_id):
         float(nz(row.get("Engagement Rate", 0.0))),
     )
 
+
 def _parse_date(s):
     try:
         return pd.to_datetime(s).date() if s else None
     except Exception:
         return None
 
+
 def recompute_agg(state=None):
-    """Rebuild aggregated engagement rate over time based on controls."""
     global agg_engagement_over_time
     df = posts_data.copy()
     agg_engagement_over_time = pd.DataFrame(columns=["Date", "Engagement Rate"])
@@ -136,16 +509,17 @@ def recompute_agg(state=None):
     if state is not None:
         state.agg_engagement_over_time = agg_engagement_over_time
 
+
 def _on_agg_change(state):
     recompute_agg(state)
 
 
-# Preformatted display strings to avoid UI comma glitch
-def fmt_int(n): 
-    try: 
+def fmt_int(n):
+    try:
         return f"{int(n):,}"
-    except Exception: 
+    except Exception:
         return "0"
+
 
 def refresh_formats():
     global current_followers_fmt, latest_reach_fmt, profile_views_fmt
@@ -160,11 +534,8 @@ def refresh_formats():
     post_comments_fmt = fmt_int(post_comments)
     total_likes_fmt = fmt_int(total_likes)
 
+
 def _latest_updated_at_str():
-    """
-    Look for a column named 'Updated At' (or common variants) in each DF,
-    take the latest, convert to São Paulo time, and return a pretty string.
-    """
     def _pick_col(df):
         if df is None or df.empty:
             return None
@@ -185,24 +556,17 @@ def _latest_updated_at_str():
     if not candidates:
         return "—"
 
-    # Convert the most recent to São Paulo time
     latest = max(candidates).tz_convert(APP_TZ)
     return latest.strftime("%Y-%m-%d %H:%M %Z")
 
 
 def reload_data(state=None):
-    """
-    Re-fetch Airtable data and recompute derived values.
-    Mirrors the initial load path, refreshes charts/cards, and updates 'Updated at'.
-    Safe to call from a button or an optional polling thread.
-    """
     global account_data, posts_data, total_posts, total_likes
     global current_followers, latest_reach, profile_views
     global post_options, selected_post, last_updated_str
     global post_likes, post_reach, post_saves, post_comments, post_engagement
     global is_refreshing, refresh_status
 
-    # start "busy" indicator
     is_refreshing = True
     refresh_status = "Refreshing…"
     if state:
@@ -213,7 +577,7 @@ def reload_data(state=None):
         cfg = get_airtable_config()
         all_data = fetch_all_tables(cfg["api_key"], cfg["base_id"], cfg["tables"])
 
-        # -------- Account metrics --------
+        # Account metrics
         account_data = all_data.get("ig_accounts", pd.DataFrame())
         if not account_data.empty and "Date" in account_data.columns:
             account_data["Date"] = pd.to_datetime(account_data["Date"], errors="coerce")
@@ -226,7 +590,7 @@ def reload_data(state=None):
                 latest_reach = int(nz(last.get("Reach", 0)))
                 profile_views = int(nz(last.get("Lifetime Profile Views", 0)))
 
-        # -------- Posts & per-post metrics --------
+        # Posts
         posts_data = all_data.get("ig_posts", pd.DataFrame())
         if not posts_data.empty:
             if "Timestamp" in posts_data.columns:
@@ -242,7 +606,7 @@ def reload_data(state=None):
             if "Likes Count" in posts_data.columns:
                 total_likes = int(pd.to_numeric(posts_data["Likes Count"], errors="coerce").fillna(0).sum())
 
-            # Keep or init aggregation date window
+            # date window init
             try:
                 if "Timestamp" in posts_data.columns and len(posts_data) > 0:
                     _dt = pd.to_datetime(posts_data["Timestamp"], errors="coerce").dropna()
@@ -254,7 +618,6 @@ def reload_data(state=None):
             except Exception as _e:
                 print("Date range init error (reload):", _e)
 
-            # Build selector options & maintain current selection
             if "Display Label" not in posts_data.columns:
                 posts_data["Display Label"] = posts_data.apply(
                     lambda r: f"{r.get('Content Type','POST')}: "
@@ -269,14 +632,13 @@ def reload_data(state=None):
                 current_sel = getattr(state, "selected_post", "")
                 if current_sel not in posts_data["Post ID"].astype(str).tolist():
                     state.selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) else ""
-                update_post_metrics(state)  # refresh post-level cards
+                update_post_metrics(state)
             else:
                 if selected_post not in posts_data["Post ID"].astype(str).tolist():
                     selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) else ""
                 (post_likes, post_reach, post_saves,
                  post_comments, post_engagement) = get_post_metrics(selected_post)
 
-        # -------- Recompute aggregate & card formats --------
         if state:
             recompute_agg(state)
         else:
@@ -284,7 +646,14 @@ def reload_data(state=None):
 
         refresh_formats()
 
-        # -------- Update "Updated at" (São Paulo time) --------
+        # Semantics wordcloud
+        if state:
+            if not hasattr(state, "hook_metric") or not state.hook_metric:
+                state.hook_metric = hook_metric
+            generate_hook_wordcloud(state.hook_metric, state=state)
+        else:
+            generate_hook_wordcloud(hook_metric)
+
         last_updated_str = _latest_updated_at_str()
         if state:
             state.last_updated_str = last_updated_str
@@ -295,7 +664,6 @@ def reload_data(state=None):
         print("Reload error:", e)
 
     finally:
-        # clear "busy" indicator
         is_refreshing = False
         refresh_status = ""
         if state:
@@ -303,9 +671,8 @@ def reload_data(state=None):
             state.refresh_status = refresh_status
 
 
-
 # -------------------------------
-# Data load
+# Initial data load
 # -------------------------------
 try:
     cfg = get_airtable_config()
@@ -314,7 +681,6 @@ try:
 
     all_data = fetch_all_tables(API_KEY, BASE_ID, cfg["tables"])
 
-    # Account metrics
     account_data = all_data.get("ig_accounts", pd.DataFrame())
     if not account_data.empty and "Date" in account_data.columns:
         account_data["Date"] = pd.to_datetime(account_data["Date"], errors="coerce")
@@ -327,17 +693,14 @@ try:
             latest_reach = int(nz(latest_row.get("Reach", 0)))
             profile_views = int(nz(latest_row.get("Lifetime Profile Views", 0)))
 
-    # Posts / comments
     posts_data = all_data.get("ig_posts", pd.DataFrame())
     if not posts_data.empty:
         if "Timestamp" in posts_data.columns:
             posts_data["Timestamp"] = pd.to_datetime(posts_data["Timestamp"], errors="coerce")
             posts_data = posts_data.sort_values("Timestamp", ascending=False)
 
-        # Normalize Post ID as string for reliable selection
-        if 'Post ID' in posts_data.columns:
-            posts_data['Post ID'] = posts_data['Post ID'].astype(str)
-
+        if "Post ID" in posts_data.columns:
+            posts_data["Post ID"] = posts_data["Post ID"].astype(str)
 
         posts_data["Engagement Rate"] = posts_data.apply(calculate_engagement_rate, axis=1)
 
@@ -345,7 +708,6 @@ try:
         if "Likes Count" in posts_data.columns:
             total_likes = int(pd.to_numeric(posts_data["Likes Count"], errors="coerce").fillna(0).sum())
 
-        # Date range defaults for aggregation
         try:
             if "Timestamp" in posts_data.columns and len(posts_data) > 0:
                 _dt = pd.to_datetime(posts_data["Timestamp"], errors="coerce").dropna()
@@ -355,30 +717,29 @@ try:
         except Exception as _e:
             print("Date range init error:", _e)
 
-        # Build selector options
+        if "Display Label" not in posts_data.columns:
+            posts_data["Display Label"] = posts_data.apply(
+                lambda row: f"{row.get('Content Type', 'POST')}: "
+                            f"{row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
+                axis=1
+            )
+
         if "Post ID" in posts_data.columns:
-            # Display label: Content Type + date (if available)
-            if "Display Label" not in posts_data.columns:
-                posts_data["Display Label"] = posts_data.apply(
-                    lambda row: f"{row.get('Content Type', 'POST')}: "
-                                f"{row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
-                    axis=1
-                )
             post_options = list(zip(posts_data["Post ID"].astype(str).tolist(), posts_data["Display Label"].tolist()))
             selected_post = str(posts_data["Post ID"].iloc[0]) if len(posts_data) > 0 else ""
             if selected_post:
                 (post_likes, post_reach, post_saves,
                  post_comments, post_engagement) = get_post_metrics(selected_post)
-                refresh_formats()
 
-        # Initial aggregate
         recompute_agg()
         refresh_formats()
+
+        # Initial Semantics wordcloud
+        generate_hook_wordcloud(hook_metric)
 
 except Exception as e:
     error_message = f"⚠️ {e}"
     print(f"✗ Error: {e}")
-    
 
 last_updated_str = _latest_updated_at_str()
 
@@ -389,23 +750,21 @@ def update_post_metrics(state):
      state.post_saves,
      state.post_comments,
      state.post_engagement) = get_post_metrics(state.selected_post)
-    print('Post changed ->', state.selected_post, 'metrics:', state.post_likes, state.post_reach, state.post_saves, state.post_comments, state.post_engagement)
-    # mirror to globals for any widgets bound to globals
+
     global post_likes, post_reach, post_saves, post_comments, post_engagement
     post_likes = state.post_likes
     post_reach = state.post_reach
     post_saves = state.post_saves
     post_comments = state.post_comments
     post_engagement = state.post_engagement
-    # update formatted strings
+
     state.post_likes_fmt = fmt_int(state.post_likes)
     state.post_reach_fmt = fmt_int(state.post_reach)
     state.post_saves_fmt = fmt_int(state.post_saves)
     state.post_comments_fmt = fmt_int(state.post_comments)
+
     refresh_formats()
-    state.post_reach_fmt = fmt_int(state.post_reach)
-    state.post_saves_fmt = fmt_int(state.post_saves)
-    state.post_comments_fmt = fmt_int(state.post_comments)
+
 
 # -------------------------------
 # UI
@@ -440,8 +799,6 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 <|Refresh data|button|class_name=btn-refresh|on_action=reload_data|>
 <|{refresh_status}|text|class_name=muted|>
 |>
-
-
 
 <|layout|columns=1 1 1|gap=20px|class_name=metrics-grid|
 
@@ -486,8 +843,6 @@ engagement_dashboard_layout = """# 📊 Account Engagement Overview
 |>
 """
 
-
-
 post_performance_layout = """# 🎬 Post Performance Analysis
 
 <|layout|columns=auto auto auto|gap=24px|class_name=inline-controls|
@@ -495,8 +850,6 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 <|Refresh data|button|class_name=btn-refresh|on_action=reload_data|>
 <|{refresh_status}|text|class_name=muted|>
 |>
-
-
 
 <|layout|columns=1 1|gap=20px|class_name=metrics-grid|
 
@@ -520,17 +873,17 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 <|layout|columns=1 1 1|gap=15px|class_name=metrics-grid|
 
 <|
-**Likes**  
+**Likes**
 <|{post_likes_fmt}|text|class_name=metric-number|>
 |>
 
 <|
-**Reach**  
+**Reach**
 <|{post_reach_fmt}|text|class_name=metric-number|>
 |>
 
 <|
-**Saves**  
+**Saves**
 <|{post_saves_fmt}|text|class_name=metric-number|>
 |>
 
@@ -539,12 +892,12 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 <|layout|columns=1 1|gap=15px|class_name=metrics-grid|
 
 <|
-**Audience Comments**  
+**Audience Comments**
 <|{post_comments_fmt}|text|class_name=metric-number|>
 |>
 
 <|
-**Engagement Rate**  
+**Engagement Rate**
 <|{post_engagement}|text|format=%.2f|class_name=metric-number|>%
 |>
 
@@ -561,15 +914,27 @@ post_performance_layout = """# 🎬 Post Performance Analysis
 <|{posts_data.nlargest(5, 'Engagement Rate')[['Display Label', 'Likes Count', 'Reach', 'Saves', 'Audience Comments Count', 'Engagement Rate']] if 'Engagement Rate' in posts_data.columns else pd.DataFrame()}|table|>
 """
 
-
 content_efficiency_layout = """# ⚙️ Content Efficiency Dashboard
 
 Coming soon!
 """
 
-semantics_layout = """# 💬 Semantics & Sentiment Dashboard
+semantics_layout = """# 💬 Semantics: Hook Word Cloud with Engagement Overlay
 
-Coming soon!
+Filters:
+- Only posts with **Hook Text**
+- Only **Content Type = VIDEO**
+
+Color words by:
+
+<|{hook_metric}|selector|lov={hook_metric_lov}|dropdown|on_change=update_hook_wordcloud|>
+
+<|{hook_wordcloud_path}|image|width=100%|>
+
+---
+
+## 🔎 Top words (debug / transparency)
+<|{hook_top_words}|table|page_size=15|>
 """
 
 pages = {
@@ -580,39 +945,9 @@ pages = {
     "Semantics_Sentiment": semantics_layout,
 }
 
-# -----------------------------------------------
-# OPTIONAL CONSERVATIVE POLLING (OFF BY DEFAULT)
-# Polls infrequently to avoid Airtable quota burn.
-# To enable, uncomment the thread start lines below
-# and set REFRESH_MINUTES to something large.
-# -----------------------------------------------
-# import threading, time
-# REFRESH_MINUTES = int(os.getenv("REFRESH_MINUTES", "180"))  # 3 hours default
-#
-# def _poll_forever(gui):
-#     while True:
-#         try:
-#             gui.call(reload_data)  # run reload on GUI loop (Taipy 3.1+)
-#         except Exception as e:
-#             print("Auto-refresh error:", e)
-#         time.sleep(REFRESH_MINUTES * 60)
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app = Gui(pages=pages, css_file="style.css")
-
-    # --- OPTIONAL polling start (uncomment to enable) ---
-    # import threading, time
-    # REFRESH_MINUTES = int(os.getenv("REFRESH_MINUTES", "180"))  # 3 hours default
-    # def _poll_forever(gui):
-    #     while True:
-    #         try:
-    #             gui.call(reload_data)  # Taipy 3.1+
-    #         except Exception as e:
-    #             print("Auto-refresh error:", e)
-    #         time.sleep(REFRESH_MINUTES * 60)
-    # threading.Thread(target=_poll_forever, args=(app,), daemon=True).start()
-    # ----------------------------------------------------
 
     app.run(
         title="Malugo Analytics ✨",
@@ -620,4 +955,3 @@ if __name__ == "__main__":
         port=port,
         dark_mode=True,
     )
-
