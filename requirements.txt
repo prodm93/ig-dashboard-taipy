@@ -21,3 +21,7 @@ plotly==5.23.0
 python-dateutil==2.9.0.post0
 pytz==2023.3.post1
 tzdata==2025.2
+
+# Word cloud additions
+wordcloud==1.9.3
+pillow==10.4.0
