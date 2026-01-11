@@ -58,7 +58,13 @@ refresh_status = ""
 # -------------------------------
 hook_metric = "Likes"
 # IMPORTANT: use a simple LOV string so the dropdown works like other tabs
-hook_metric_lov = "Likes;Audience Comments;Likes + Audience Comments;Average Watch Time"
+hook_metric_lov = [
+    "Likes",
+    "Audience Comments",
+    "Likes + Audience Comments",
+    "Average Watch Time",
+]
+
 hook_wordcloud_path = ""  # generated PNG
 hook_top_words = pd.DataFrame(columns=["word", "engagement_weight"])
 
