@@ -65,7 +65,6 @@ hook_metric_lov = [
 ]
 
 hook_wordcloud_path = ""  # generated PNG
-# NOTE: this table is just for debug; the view shows only top 5
 hook_top_words = pd.DataFrame(columns=["word", "freq", "metric_avg"])
 
 
@@ -277,7 +276,7 @@ def _get_metric_value(row, metric_name: str) -> float:
 
 
 # -------------------------------
-# Hook stats builder (REQUIRED by generate_hook_wordcloud)
+# Hook stats builder (required by generate_hook_wordcloud)
 # -------------------------------
 def _build_hook_word_stats(df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
     """
@@ -319,6 +318,7 @@ def _build_hook_word_stats(df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
         rows.append((w, int(f), float(avg)))
 
     out = pd.DataFrame(rows, columns=["word", "freq", "metric_avg"])
+    # Keep the existing sort for other uses; table sort is handled separately.
     out = out.sort_values(["freq", "metric_avg"], ascending=[False, False]).reset_index(drop=True)
     return out
 
@@ -356,8 +356,8 @@ def generate_hook_wordcloud(metric_name: str, state=None):
 
     stats = _build_hook_word_stats(df, metric_name)
 
-    # Top words table: top 5
-    hook_top_words = stats.head(5).copy()
+    # Top hook words table: top 5 by the selected engagement metric (metric_avg)
+    hook_top_words = stats.sort_values("metric_avg", ascending=False).head(5).copy()
 
     if stats.empty:
         hook_wordcloud_path = ""
@@ -909,7 +909,7 @@ Size words by:
 
 ---
 
-## 🔎 Top words
+## 🔎 Top hook words
 <|{hook_top_words}|table|page_size=5|>
 """
 
