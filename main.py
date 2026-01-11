@@ -870,7 +870,7 @@ Color & size words by:
 
 <|{hook_metric}|selector|lov={hook_metric_lov}|dropdown|on_change=update_hook_wordcloud|>
 
-<|layout|columns=1 1|gap=20px|
+<|layout|columns=5 3|gap=20px|
 <|{hook_wordcloud_path}|image|width=100%|>
 <||>
 |>
