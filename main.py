@@ -394,7 +394,8 @@ def generate_hook_wordcloud(metric_name: str, state=None):
     out_path = os.path.join(os.getcwd(), "hook_wordcloud.png")
     wc.to_file(out_path)
 
-    hook_wordcloud_path = "hook_wordcloud.png"
+    import time
+    hook_wordcloud_path = f"hook_wordcloud.png?t={int(time.time())}"
 
     if state:
         state.hook_wordcloud_path = hook_wordcloud_path
