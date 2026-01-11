@@ -56,8 +56,18 @@ refresh_status = ""
 # -------------------------------
 # Semantics / Hook word cloud state
 # -------------------------------
-hook_metric = "Likes"
-hook_metric_lov = [
+hook_size_metric = "Likes"
+hook_color_metric = "Frequency"
+
+hook_size_lov = [
+    "Likes",
+    "Audience Comments",
+    "Likes + Audience Comments",
+    "Average Watch Time",
+]
+
+hook_color_lov = [
+    "Frequency",
     "Likes",
     "Audience Comments",
     "Likes + Audience Comments",
@@ -325,7 +335,7 @@ def _build_hook_word_stats(df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
 
 # -------------------------------
 # Word cloud generation
-# SIZE BY engagement metric, COLOR BY frequency
+# SIZE BY engagement metric, COLOR BY frequency or metric
 # -------------------------------
 def _warm_cool_rgb(norm01: float) -> str:
     x = max(0.0, min(1.0, float(norm01)))
@@ -333,7 +343,7 @@ def _warm_cool_rgb(norm01: float) -> str:
     r, g, b = colorsys.hsv_to_rgb(hue, 0.85, 0.95)
     return f"rgb({int(r*255)},{int(g*255)},{int(b*255)})"
 
-def generate_hook_wordcloud(metric_name: str, state=None):
+def generate_hook_wordcloud(size_metric: str, color_metric: str, state=None):
     global hook_wordcloud_path, hook_top_words, posts_data
 
     if posts_data is None or posts_data.empty:
@@ -354,9 +364,9 @@ def generate_hook_wordcloud(metric_name: str, state=None):
     else:
         df = df.iloc[0:0]
 
-    stats = _build_hook_word_stats(df, metric_name)
+    stats = _build_hook_word_stats(df, size_metric)
 
-    # Top hook words table: top 5 by the selected engagement metric (metric_avg)
+    # Top hook words table: top 5 by the selected size metric
     hook_top_words = stats.sort_values("metric_avg", ascending=False).head(5).copy()
 
     if stats.empty:
@@ -366,19 +376,25 @@ def generate_hook_wordcloud(metric_name: str, state=None):
             state.hook_top_words = hook_top_words
         return
 
-    # SIZE: engagement weights
+    # SIZE: engagement weights from size_metric
     metric_map = dict(zip(stats["word"], stats["metric_avg"]))
     size_weights = {w: math.log1p(max(0.0, float(v))) for w, v in metric_map.items()}
 
-    # COLOR: frequency
-    freq_map = dict(zip(stats["word"], stats["freq"]))
-    fmin = float(stats["freq"].min())
-    fmax = float(stats["freq"].max())
-    fden = (fmax - fmin) if (fmax - fmin) != 0 else 1.0
+    # COLOR: either frequency or another metric
+    if color_metric == "Frequency":
+        color_map = dict(zip(stats["word"], stats["freq"]))
+    else:
+        # Need to compute stats for the color metric
+        color_stats = _build_hook_word_stats(df, color_metric)
+        color_map = dict(zip(color_stats["word"], color_stats["metric_avg"]))
+
+    cmin = float(min(color_map.values())) if color_map else 0
+    cmax = float(max(color_map.values())) if color_map else 0
+    cden = (cmax - cmin) if (cmax - cmin) != 0 else 1.0
 
     def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
-        f = float(freq_map.get(word, fmin))
-        norm = (f - fmin) / fden
+        c = float(color_map.get(word, cmin))
+        norm = (c - cmin) / cden
         return _warm_cool_rgb(norm)
 
     wc = WordCloud(
@@ -394,6 +410,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
     out_path = os.path.join(os.getcwd(), "hook_wordcloud.png")
     wc.to_file(out_path)
 
+    # Add timestamp to break browser cache
     import time
     hook_wordcloud_path = f"hook_wordcloud.png?t={int(time.time())}"
 
@@ -403,9 +420,10 @@ def generate_hook_wordcloud(metric_name: str, state=None):
 
 
 def update_hook_wordcloud(state):
-    global hook_metric
-    hook_metric = state.hook_metric
-    generate_hook_wordcloud(hook_metric, state=state)
+    global hook_size_metric, hook_color_metric
+    hook_size_metric = state.hook_size_metric
+    hook_color_metric = state.hook_color_metric
+    generate_hook_wordcloud(hook_size_metric, hook_color_metric, state=state)
 
 
 # -------------------------------
@@ -623,11 +641,13 @@ def reload_data(state=None):
 
         # Semantics
         if state:
-            if not hasattr(state, "hook_metric") or not state.hook_metric:
-                state.hook_metric = hook_metric
-            generate_hook_wordcloud(state.hook_metric, state=state)
+            if not hasattr(state, "hook_size_metric") or not state.hook_size_metric:
+                state.hook_size_metric = hook_size_metric
+            if not hasattr(state, "hook_color_metric") or not state.hook_color_metric:
+                state.hook_color_metric = hook_color_metric
+            generate_hook_wordcloud(state.hook_size_metric, state.hook_color_metric, state=state)
         else:
-            generate_hook_wordcloud(hook_metric)
+            generate_hook_wordcloud(hook_size_metric, hook_color_metric)
 
         last_updated_str = _latest_updated_at_str()
         if state:
@@ -711,7 +731,7 @@ try:
         refresh_formats()
 
         # Initial Semantics build so the tab isn't empty on first load
-        generate_hook_wordcloud(hook_metric)
+        generate_hook_wordcloud(hook_size_metric, hook_color_metric)
 
 except Exception as e:
     error_message = f"⚠️ {e}"
@@ -897,11 +917,19 @@ Coming soon!
 
 semantics_layout = """# 💬 Semantics: Hook Word Cloud (Engagement-Weighted)
 
-Words are coloured by frequency of appearance in hooks across videos (warmer tones for higher frequency).
+<|layout|columns=1 1|gap=20px|
 
-Size words by:
+<|
+**Size words by:**
+<|{hook_size_metric}|selector|lov={hook_size_lov}|dropdown|on_change=update_hook_wordcloud|>
+|>
 
-<|{hook_metric}|selector|lov={hook_metric_lov}|dropdown|on_change=update_hook_wordcloud|>
+<|
+**Colour words by:**
+<|{hook_color_metric}|selector|lov={hook_color_lov}|dropdown|on_change=update_hook_wordcloud|>
+|>
+
+|>
 
 <|layout|columns=5 3|gap=20px|
 <|{hook_wordcloud_path}|image|width=100%|>
