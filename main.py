@@ -291,7 +291,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
 
     if posts_data is None or posts_data.empty:
         hook_wordcloud_path = ""
-        hook_top_words = pd.DataFrame(columns=["word", "engagement_weight"])
+        hook_top_words = pd.DataFrame(columns=["word", "freq", "metric_avg"])
         if state:
             state.hook_wordcloud_path = hook_wordcloud_path
             state.hook_top_words = hook_top_words
@@ -299,7 +299,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
 
     df = posts_data.copy()
 
-    # (Logic still filters; we just removed the UI text)
+    # Only VIDEO + non-empty Hook Text (logic unchanged)
     if "Content Type" in df.columns:
         df = df[df["Content Type"].astype(str).str.upper() == "VIDEO"]
     if "Hook Text" in df.columns:
@@ -307,26 +307,9 @@ def generate_hook_wordcloud(metric_name: str, state=None):
     else:
         df = df.iloc[0:0]
 
-    word_to_vals = {}
-    for _, row in df.iterrows():
-        tokens = _tokenize_hook_text(row.get("Hook Text", ""))
-        if not tokens:
-            continue
+    stats = _build_hook_word_stats(df, metric_name)
 
-        v = float(_get_metric_value(row, metric_name))
-        for t in set(tokens):
-            word_to_vals.setdefault(t, []).append(v)
-
-    rows = []
-    for w, vals in word_to_vals.items():
-        avg_eng = sum(vals) / max(1, len(vals))
-        rows.append((w, avg_eng))
-
-    stats = pd.DataFrame(rows, columns=["word", "engagement_weight"]).sort_values(
-        "engagement_weight", ascending=False
-    )
-
-    # Top 5 only
+    # Top words table: top 5 (keep your existing sort from _build_hook_word_stats)
     hook_top_words = stats.head(5).copy()
 
     if stats.empty:
@@ -336,20 +319,26 @@ def generate_hook_wordcloud(metric_name: str, state=None):
             state.hook_top_words = hook_top_words
         return
 
-    # WordCloud expects "frequencies": we feed engagement weights (log-scaled to reduce outliers)
-    weights = {
-        r.word: math.log1p(max(0.0, float(r.engagement_weight)))
-        for r in stats.itertuples()
+    # ---------------------------------------------------------
+    # SIZE BY ENGAGEMENT: feed engagement weights to WordCloud
+    # ---------------------------------------------------------
+    metric_map = dict(zip(stats["word"], stats["metric_avg"]))
+    size_weights = {
+        w: math.log1p(max(0.0, float(v)))  # log dampening so huge outliers don't dominate
+        for w, v in metric_map.items()
     }
 
-    mn = float(stats["engagement_weight"].min())
-    mx = float(stats["engagement_weight"].max())
-    denom = (mx - mn) if (mx - mn) != 0 else 1.0
-    lookup = stats.set_index("word")["engagement_weight"].to_dict()
+    # ---------------------------------------------------------
+    # COLOR BY FREQUENCY: map freq -> cool/warm
+    # ---------------------------------------------------------
+    freq_map = dict(zip(stats["word"], stats["freq"]))
+    fmin = float(stats["freq"].min())
+    fmax = float(stats["freq"].max())
+    fden = (fmax - fmin) if (fmax - fmin) != 0 else 1.0
 
-    def color_func(word, *args, **kwargs):
-        v = float(lookup.get(word, mn))
-        norm = (v - mn) / denom
+    def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
+        f = float(freq_map.get(word, fmin))
+        norm = (f - fmin) / fden  # 0..1 by frequency
         return _warm_cool_rgb(norm)
 
     wc = WordCloud(
@@ -358,7 +347,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
         background_color="white",
         collocations=False,
         prefer_horizontal=0.95,
-    ).generate_from_frequencies(weights)
+    ).generate_from_frequencies(size_weights)
 
     wc = wc.recolor(color_func=color_func)
 
@@ -370,6 +359,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
     if state:
         state.hook_wordcloud_path = hook_wordcloud_path
         state.hook_top_words = hook_top_words
+
 
 def update_hook_wordcloud(state):
     global hook_metric
@@ -866,7 +856,9 @@ Coming soon!
 
 semantics_layout = """# 💬 Semantics: Hook Word Cloud (Engagement-Weighted)
 
-Color & size words by:
+Words are coloured by frequency of appearance in hooks across videos (warmer tones for higher frequency).
+
+Size words by:
 
 <|{hook_metric}|selector|lov={hook_metric_lov}|dropdown|on_change=update_hook_wordcloud|>
 
