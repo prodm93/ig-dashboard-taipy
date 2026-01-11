@@ -57,7 +57,6 @@ refresh_status = ""
 # Semantics / Hook word cloud state
 # -------------------------------
 hook_metric = "Likes"
-# IMPORTANT: use a simple LOV string so the dropdown works like other tabs
 hook_metric_lov = [
     "Likes",
     "Audience Comments",
@@ -66,7 +65,8 @@ hook_metric_lov = [
 ]
 
 hook_wordcloud_path = ""  # generated PNG
-hook_top_words = pd.DataFrame(columns=["word", "engagement_weight"])
+# NOTE: this table is just for debug; the view shows only top 5
+hook_top_words = pd.DataFrame(columns=["word", "freq", "metric_avg"])
 
 
 # -------------------------------
@@ -277,8 +277,55 @@ def _get_metric_value(row, metric_name: str) -> float:
 
 
 # -------------------------------
+# Hook stats builder (REQUIRED by generate_hook_wordcloud)
+# -------------------------------
+def _build_hook_word_stats(df: pd.DataFrame, metric_name: str) -> pd.DataFrame:
+    """
+    Returns dataframe: word, freq, metric_avg
+
+    freq:
+      Token frequency across hooks (counts repeated occurrences within a hook).
+    metric_avg:
+      Average engagement metric across posts that contain the word
+      (counts a word at most once per post for the average).
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["word", "freq", "metric_avg"])
+
+    freq = {}
+    metric_sum = {}
+    metric_cnt = {}
+
+    for _, row in df.iterrows():
+        tokens = _tokenize_hook_text(row.get("Hook Text", ""))
+        if not tokens:
+            continue
+
+        # frequency counts (each occurrence)
+        for t in tokens:
+            freq[t] = freq.get(t, 0) + 1
+
+        mval = _get_metric_value(row, metric_name)
+
+        # metric averages (unique per post)
+        for t in set(tokens):
+            metric_sum[t] = metric_sum.get(t, 0.0) + float(mval)
+            metric_cnt[t] = metric_cnt.get(t, 0) + 1
+
+    rows = []
+    for w, f in freq.items():
+        cnt = metric_cnt.get(w, 0)
+        avg = (metric_sum.get(w, 0.0) / cnt) if cnt else 0.0
+        rows.append((w, int(f), float(avg)))
+
+    out = pd.DataFrame(rows, columns=["word", "freq", "metric_avg"])
+    out = out.sort_values(["freq", "metric_avg"], ascending=[False, False]).reset_index(drop=True)
+    return out
+
+
+# -------------------------------
 # Word cloud generation
-# FLIPPED: size by engagement metric, color by engagement metric
+# SIZE BY engagement metric, COLOR BY frequency
 # -------------------------------
 def _warm_cool_rgb(norm01: float) -> str:
     x = max(0.0, min(1.0, float(norm01)))
@@ -299,7 +346,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
 
     df = posts_data.copy()
 
-    # Only VIDEO + non-empty Hook Text (logic unchanged)
+    # Only VIDEO + non-empty Hook Text
     if "Content Type" in df.columns:
         df = df[df["Content Type"].astype(str).str.upper() == "VIDEO"]
     if "Hook Text" in df.columns:
@@ -309,7 +356,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
 
     stats = _build_hook_word_stats(df, metric_name)
 
-    # Top words table: top 5 (keep your existing sort from _build_hook_word_stats)
+    # Top words table: top 5
     hook_top_words = stats.head(5).copy()
 
     if stats.empty:
@@ -319,18 +366,11 @@ def generate_hook_wordcloud(metric_name: str, state=None):
             state.hook_top_words = hook_top_words
         return
 
-    # ---------------------------------------------------------
-    # SIZE BY ENGAGEMENT: feed engagement weights to WordCloud
-    # ---------------------------------------------------------
+    # SIZE: engagement weights
     metric_map = dict(zip(stats["word"], stats["metric_avg"]))
-    size_weights = {
-        w: math.log1p(max(0.0, float(v)))  # log dampening so huge outliers don't dominate
-        for w, v in metric_map.items()
-    }
+    size_weights = {w: math.log1p(max(0.0, float(v))) for w, v in metric_map.items()}
 
-    # ---------------------------------------------------------
-    # COLOR BY FREQUENCY: map freq -> cool/warm
-    # ---------------------------------------------------------
+    # COLOR: frequency
     freq_map = dict(zip(stats["word"], stats["freq"]))
     fmin = float(stats["freq"].min())
     fmax = float(stats["freq"].max())
@@ -338,7 +378,7 @@ def generate_hook_wordcloud(metric_name: str, state=None):
 
     def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
         f = float(freq_map.get(word, fmin))
-        norm = (f - fmin) / fden  # 0..1 by frequency
+        norm = (f - fmin) / fden
         return _warm_cool_rgb(norm)
 
     wc = WordCloud(
@@ -544,7 +584,7 @@ def reload_data(state=None):
             try:
                 if "Timestamp" in posts_data.columns and len(posts_data) > 0:
                     _dt = pd.to_datetime(posts_data["Timestamp"], errors="coerce").dropna()
-                    if len(_dt) > 0:
+                    if _dt is not None and len(_dt) > 0:
                         if state is None or not getattr(state, "date_start", ""):
                             globals()["date_start"] = str(_dt.min().date())
                         if state is None or not getattr(state, "date_end", ""):
@@ -604,7 +644,7 @@ def reload_data(state=None):
 
 
 # -------------------------------
-# Data load (initial)
+# Initial data load
 # -------------------------------
 try:
     cfg = get_airtable_config()
@@ -645,7 +685,7 @@ try:
         try:
             if "Timestamp" in posts_data.columns and len(posts_data) > 0:
                 _dt = pd.to_datetime(posts_data["Timestamp"], errors="coerce").dropna()
-                if len(_dt) > 0:
+                if _dt is not None and len(_dt) > 0:
                     date_start = str(_dt.min().date())
                     date_end = str(_dt.max().date())
         except Exception as _e:
@@ -655,8 +695,8 @@ try:
             posts_data["Display Label"] = posts_data.apply(
                 lambda row: f"{row.get('Content Type', 'POST')}: "
                             f"{row['Timestamp'].strftime('%b %d, %Y') if pd.notna(row.get('Timestamp')) else 'No Date'}",
-                axis=1
-            )
+                    axis=1
+                )
 
         if "Post ID" in posts_data.columns:
             post_options = list(zip(posts_data["Post ID"].astype(str).tolist(),
